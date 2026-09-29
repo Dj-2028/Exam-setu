@@ -1,0 +1,118 @@
+{
+  "common": {
+    "appName": "ExamSetu AI",
+    "loading": "लोड हो रहा है...",
+    "save": "सहेजें",
+    "cancel": "रद्द करें",
+    "confirm": "पुष्टि करें",
+    "delete": "हटाएँ",
+    "edit": "संपादित करें",
+    "search": "खोजें",
+    "retry": "पुनः प्रयास",
+    "close": "बंद करें",
+    "back": "वापस",
+    "next": "अगला",
+    "previous": "पिछला",
+    "submit": "जमा करें",
+    "signOut": "साइन आउट",
+    "signIn": "साइन इन",
+    "email": "ईमेल",
+    "password": "पासवर्ड",
+    "noData": "कोई डेटा उपलब्ध नहीं"
+  },
+  "auth": {
+    "signInTitle": "ExamSetu AI में साइन इन करें",
+    "signInSubtitle": "AI-सहायित मूल्यांकन मंच",
+    "invalidCredentials": "अमान्य ईमेल या पासवर्ड",
+    "sessionExpired": "आपका सत्र समाप्त हो गया है। कृपया पुनः साइन इन करें।"
+  },
+  "roles": {
+    "examiner": "परीक्षक",
+    "controller": "परीक्षा नियंत्रक",
+    "admin": "प्रशासक"
+  },
+  "status": {
+    "pending": "लंबित",
+    "inProgress": "प्रगति में",
+    "flagged": "ध्यान आवश्यक",
+    "inModeration": "दूसरा मूल्यांकन",
+    "completed": "पूर्ण",
+    "finalized": "अंतिम रूप"
+  },
+  "confidence": {
+    "high": "उच्च विश्वास",
+    "medium": "मध्यम विश्वास",
+    "low": "कम विश्वास"
+  },
+  "examiner": {
+    "mySheets": "मेरी उत्तर पुस्तिकाएँ",
+    "evaluationWorkspace": "मूल्यांकन कार्यक्षेत्र",
+    "scanViewer": "स्कैन दर्शक",
+    "transcription": "प्रतिलेखन",
+    "aiSuggestion": "AI सुझाव",
+    "markEntry": "अंक दर्ज करें",
+    "confirmMark": "अंक पुष्टि करें",
+    "overrideMark": "ओवरराइड",
+    "overrideReason": "ओवरराइड का कारण",
+    "overrideReasonPlaceholder": "बताएं कि अंक सुझाए गए बैंड से अलग क्यों है...",
+    "completeSheet": "उत्तर पुस्तिका पूर्ण करें",
+    "manualEvalRecommended": "मैन्युअल मूल्यांकन अनुशंसित",
+    "suggestionUnavailable": "सुझाव उपलब्ध नहीं",
+    "scoreBand": "सुझाया गया अंक बैंड",
+    "diagramDetected": "आरेख मिला",
+    "diagramMissing": "कोई आरेख नहीं मिला (अपेक्षित था)",
+    "questionNav": "प्रश्न",
+    "savedStatus": "सहेजा गया",
+    "savingStatus": "सहेज रहे हैं...",
+    "retryingStatus": "पुनः कनेक्ट हो रहा है...",
+    "failedStatus": "सहेजा नहीं गया। पुनः प्रयास करें",
+    "secondEvaluations": "दूसरा मूल्यांकन"
+  },
+  "controller": {
+    "dashboard": "डैशबोर्ड",
+    "examiners": "परीक्षक",
+    "flags": "फ़्लैग",
+    "moderation": "मॉडरेशन",
+    "results": "परिणाम",
+    "completion": "पूर्णता",
+    "sheetsPending": "लंबित उत्तर पुस्तिकाएँ",
+    "flagsOpen": "खुले फ़्लैग",
+    "moderationQueue": "मॉडरेशन कतार",
+    "dismiss": "खारिज करें",
+    "escalate": "आगे बढ़ाएँ",
+    "sendToModeration": "मॉडरेशन भेजें",
+    "reconcile": "समाधान करें",
+    "finalize": "परिणाम अंतिम करें",
+    "exportResults": "परिणाम निर्यात करें"
+  },
+  "admin": {
+    "users": "उपयोगकर्ता",
+    "exams": "परीक्षाएँ और प्रश्नपत्र",
+    "assignments": "आवंटन",
+    "audit": "ऑडिट लॉग",
+    "settings": "सेटिंग्स",
+    "inviteUser": "उपयोगकर्ता आमंत्रित करें",
+    "createExam": "परीक्षा बनाएँ",
+    "createPaper": "प्रश्नपत्र बनाएँ"
+  },
+  "flags": {
+    "blankAnswer": "रिक्त उत्तर",
+    "skippedQuestion": "छोड़ा गया प्रश्न",
+    "missingSignature": "हस्ताक्षर गायब",
+    "diagramMissing": "आरेख गायब",
+    "examinerOutlier": "परीक्षक विचलन",
+    "uniformMarks": "एकसमान अंक",
+    "fastMarking": "तेज़ अंकन",
+    "aiDivergence": "AI विचलन"
+  },
+  "severity": {
+    "low": "निम्न",
+    "medium": "मध्यम",
+    "high": "उच्च"
+  },
+  "theme": {
+    "light": "लाइट",
+    "dark": "डार्क",
+    "system": "सिस्टम"
+  }
+}

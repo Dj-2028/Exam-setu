@@ -1,0 +1,303 @@
+/* app/globals.css — ExamSetu AI Design System */
+@import "tailwindcss";
+
+/* Dark mode is applied by adding the "dark" class to <html> (next-themes) */
+@custom-variant dark (&:is(.dark *));
+
+/* ───────────── Light theme (default) ───────────── */
+:root {
+    /* Surfaces */
+    --background: #f8fafc;
+    --foreground: #0f172a;
+    --card: #ffffff;
+    --card-foreground: #0f172a;
+    --popover: #ffffff;
+    --popover-foreground: #0f172a;
+
+    /* Brand */
+    --primary: #1e40af;
+    --primary-foreground: #ffffff;
+    --secondary: #f1f5f9;
+    --secondary-foreground: #1e293b;
+    --accent: #e0e7ff;
+    --accent-foreground: #1e3a8a;
+
+    /* Neutral support */
+    --muted: #f1f5f9;
+    --muted-foreground: #64748b;
+    --border: #e2e8f0;
+    --input: #cbd5e1;
+    --ring: #3b82f6;
+
+    /* Feedback */
+    --destructive: #dc2626;
+    --destructive-foreground: #ffffff;
+    --success: #15803d;
+    --success-soft: #dcfce7;
+    --warning: #b45309;
+    --warning-soft: #fef3c7;
+    --info: #0369a1;
+    --info-soft: #e0f2fe;
+
+    /* AI-generated content */
+    --ai: #7c3aed;
+    --ai-foreground: #ffffff;
+    --ai-soft: #ede9fe;
+
+    /* Confidence levels (AI suggestions) */
+    --confidence-high: var(--success);
+    --confidence-medium: var(--warning);
+    --confidence-low: var(--destructive);
+
+    /* Sheet / question status */
+    --status-pending: #64748b;
+    --status-in-progress: var(--info);
+    --status-flagged: var(--warning);
+    --status-moderation: var(--ai);
+    --status-completed: var(--success);
+    --status-finalized: var(--primary);
+
+    /* Flag severity */
+    --severity-low: var(--info);
+    --severity-medium: var(--warning);
+    --severity-high: var(--destructive);
+
+    /* Sidebar (controller / admin) */
+    --sidebar: #0f172a;
+    --sidebar-foreground: #e2e8f0;
+    --sidebar-accent: #1e293b;
+    --sidebar-accent-foreground: #ffffff;
+    --sidebar-border: #1e293b;
+
+    /* Charts */
+    --chart-1: #2563eb;
+    --chart-2: #ea580c;
+    --chart-3: #0d9488;
+    --chart-4: #7c3aed;
+    --chart-5: #ca8a04;
+
+    /* DOHE Burgundy / Govt Theme Tokens */
+    --dohe-maroon: #631438;
+    --dohe-maroon-dark: #460e28;
+    --dohe-maroon-light: #7e1948;
+    --dohe-maroon-soft: #fcf4f7;
+    --dohe-gold: #c28800;
+
+    /* Shape and type */
+    --radius: 0.5rem;
+    --font-sans:
+        var(--font-inter), var(--font-devanagari), system-ui, sans-serif;
+}
+
+/* ───────────── Dark theme ───────────── */
+.dark {
+    --background: #0b1220;
+    --foreground: #e2e8f0;
+    --card: #111a2e;
+    --card-foreground: #e2e8f0;
+    --popover: #111a2e;
+    --popover-foreground: #e2e8f0;
+
+    --primary: #60a5fa;
+    --primary-foreground: #0b1220;
+    --secondary: #1e293b;
+    --secondary-foreground: #e2e8f0;
+    --accent: #1e2a4a;
+    --accent-foreground: #c7d2fe;
+
+    --muted: #1e293b;
+    --muted-foreground: #94a3b8;
+    --border: #263248;
+    --input: #334155;
+    --ring: #60a5fa;
+
+    --destructive: #f87171;
+    --destructive-foreground: #0b1220;
+    --success: #4ade80;
+    --success-soft: #052e16;
+    --warning: #fbbf24;
+    --warning-soft: #422006;
+    --info: #38bdf8;
+    --info-soft: #082f49;
+
+    --ai: #a78bfa;
+    --ai-foreground: #0b1220;
+    --ai-soft: #2e1065;
+
+    --status-pending: #94a3b8;
+
+    --sidebar: #070d18;
+    --sidebar-foreground: #cbd5e1;
+    --sidebar-accent: #1e293b;
+    --sidebar-accent-foreground: #ffffff;
+    --sidebar-border: #1e293b;
+
+    --chart-1: #60a5fa;
+    --chart-2: #fb923c;
+    --chart-3: #2dd4bf;
+    --chart-4: #a78bfa;
+    --chart-5: #facc15;
+
+    --dohe-maroon: #8a2452;
+    --dohe-maroon-dark: #631438;
+    --dohe-maroon-light: #a33264;
+    --dohe-maroon-soft: #240b17;
+    --dohe-gold: #fbbf24;
+}
+
+/* ───────────── Expose variables as Tailwind utilities ───────────── */
+@theme inline {
+    --color-dohe-maroon: var(--dohe-maroon);
+    --color-dohe-maroon-dark: var(--dohe-maroon-dark);
+    --color-dohe-maroon-light: var(--dohe-maroon-light);
+    --color-dohe-maroon-soft: var(--dohe-maroon-soft);
+    --color-dohe-gold: var(--dohe-gold);
+
+    --color-background: var(--background);
+    --color-foreground: var(--foreground);
+    --color-card: var(--card);
+    --color-card-foreground: var(--card-foreground);
+    --color-popover: var(--popover);
+    --color-popover-foreground: var(--popover-foreground);
+
+    --color-primary: var(--primary);
+    --color-primary-foreground: var(--primary-foreground);
+    --color-secondary: var(--secondary);
+    --color-secondary-foreground: var(--secondary-foreground);
+    --color-accent: var(--accent);
+    --color-accent-foreground: var(--accent-foreground);
+    --color-muted: var(--muted);
+    --color-muted-foreground: var(--muted-foreground);
+    --color-border: var(--border);
+    --color-input: var(--input);
+    --color-ring: var(--ring);
+
+    --color-destructive: var(--destructive);
+    --color-destructive-foreground: var(--destructive-foreground);
+    --color-success: var(--success);
+    --color-success-soft: var(--success-soft);
+    --color-warning: var(--warning);
+    --color-warning-soft: var(--warning-soft);
+    --color-info: var(--info);
+    --color-info-soft: var(--info-soft);
+
+    --color-ai: var(--ai);
+    --color-ai-foreground: var(--ai-foreground);
+    --color-ai-soft: var(--ai-soft);
+
+    --color-confidence-high: var(--confidence-high);
+    --color-confidence-medium: var(--confidence-medium);
+    --color-confidence-low: var(--confidence-low);
+
+    --color-status-pending: var(--status-pending);
+    --color-status-in-progress: var(--status-in-progress);
+    --color-status-flagged: var(--status-flagged);
+    --color-status-moderation: var(--status-moderation);
+    --color-status-completed: var(--status-completed);
+    --color-status-finalized: var(--status-finalized);
+
+    --color-severity-low: var(--severity-low);
+    --color-severity-medium: var(--severity-medium);
+    --color-severity-high: var(--severity-high);
+
+    --color-sidebar: var(--sidebar);
+    --color-sidebar-foreground: var(--sidebar-foreground);
+    --color-sidebar-accent: var(--sidebar-accent);
+    --color-sidebar-accent-foreground: var(--sidebar-accent-foreground);
+    --color-sidebar-border: var(--sidebar-border);
+
+    --color-chart-1: var(--chart-1);
+    --color-chart-2: var(--chart-2);
+    --color-chart-3: var(--chart-3);
+    --color-chart-4: var(--chart-4);
+    --color-chart-5: var(--chart-5);
+
+    --radius-sm: calc(var(--radius) - 4px);
+    --radius-md: calc(var(--radius) - 2px);
+    --radius-lg: var(--radius);
+    --radius-xl: calc(var(--radius) + 4px);
+
+    --font-sans: var(--font-sans);
+}
+
+/* ───────────── Base styles ───────────── */
+@layer base {
+    * {
+        border-color: var(--border);
+    }
+    body {
+        background: var(--background);
+        color: var(--foreground);
+        font-family: var(--font-sans);
+        line-height: 1.6;
+    }
+    /* Devanagari needs extra vertical room */
+    :lang(hi) {
+        line-height: 1.85;
+    }
+
+    :focus-visible {
+        outline: 2px solid var(--ring);
+        outline-offset: 2px;
+    }
+    @media (prefers-reduced-motion: reduce) {
+        * {
+            animation-duration: 0.01ms !important;
+            transition-duration: 0.01ms !important;
+        }
+    }
+}
+
+/* ───────────── Utility classes ───────────── */
+@layer utilities {
+    /* AI badge styling */
+    .ai-badge {
+        background: var(--ai-soft);
+        color: var(--ai);
+        border: 1px solid var(--ai);
+        font-size: 0.75rem;
+        font-weight: 600;
+        padding: 0.125rem 0.5rem;
+        border-radius: var(--radius-sm);
+    }
+
+    /* Scan viewer neutral backdrop */
+    .scan-backdrop {
+        background: #6b7280;
+    }
+    .dark .scan-backdrop {
+        background: #374151;
+    }
+
+    /* Skeleton loading animation */
+    .skeleton {
+        background: linear-gradient(
+            90deg,
+            var(--muted) 25%,
+            var(--accent) 50%,
+            var(--muted) 75%
+        );
+        background-size: 200% 100%;
+        animation: skeleton-shimmer 1.5s ease-in-out infinite;
+    }
+    @keyframes skeleton-shimmer {
+        0% { background-position: 200% 0; }
+        100% { background-position: -200% 0; }
+    }
+
+    /* DOHE Portal Ticker Marquee */
+    @keyframes marquee {
+        0% { transform: translateX(100%); }
+        100% { transform: translateX(-100%); }
+    }
+    .animate-marquee {
+        display: inline-block;
+        white-space: nowrap;
+        animation: marquee 35s linear infinite;
+    }
+    .animate-marquee.paused,
+    .animate-marquee:hover {
+        animation-play-state: paused;
+    }
+}
+

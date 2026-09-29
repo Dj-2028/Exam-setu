@@ -1,0 +1,118 @@
+{
+  "common": {
+    "appName": "ExamSetu AI",
+    "loading": "Loading...",
+    "save": "Save",
+    "cancel": "Cancel",
+    "confirm": "Confirm",
+    "delete": "Delete",
+    "edit": "Edit",
+    "search": "Search",
+    "retry": "Retry",
+    "close": "Close",
+    "back": "Back",
+    "next": "Next",
+    "previous": "Previous",
+    "submit": "Submit",
+    "signOut": "Sign Out",
+    "signIn": "Sign In",
+    "email": "Email",
+    "password": "Password",
+    "noData": "No data available"
+  },
+  "auth": {
+    "signInTitle": "Sign In to ExamSetu AI",
+    "signInSubtitle": "AI-Assisted Evaluation Platform",
+    "invalidCredentials": "Invalid email or password",
+    "sessionExpired": "Your session has expired. Please sign in again."
+  },
+  "roles": {
+    "examiner": "Examiner",
+    "controller": "Exam Controller",
+    "admin": "Admin"
+  },
+  "status": {
+    "pending": "Pending",
+    "inProgress": "In Progress",
+    "flagged": "Needs Attention",
+    "inModeration": "Second Evaluation",
+    "completed": "Completed",
+    "finalized": "Finalized"
+  },
+  "confidence": {
+    "high": "High Confidence",
+    "medium": "Medium Confidence",
+    "low": "Low Confidence"
+  },
+  "examiner": {
+    "mySheets": "My Sheets",
+    "evaluationWorkspace": "Evaluation Workspace",
+    "scanViewer": "Scan Viewer",
+    "transcription": "Transcription",
+    "aiSuggestion": "AI Suggestion",
+    "markEntry": "Enter Mark",
+    "confirmMark": "Confirm Mark",
+    "overrideMark": "Override",
+    "overrideReason": "Reason for Override",
+    "overrideReasonPlaceholder": "Explain why the mark differs from the suggested band...",
+    "completeSheet": "Complete Sheet",
+    "manualEvalRecommended": "Manual evaluation recommended",
+    "suggestionUnavailable": "Suggestion unavailable",
+    "scoreBand": "Suggested Score Band",
+    "diagramDetected": "Diagram detected",
+    "diagramMissing": "No diagram found (expected)",
+    "questionNav": "Questions",
+    "savedStatus": "Saved",
+    "savingStatus": "Saving...",
+    "retryingStatus": "Reconnecting...",
+    "failedStatus": "Not saved. Retry",
+    "secondEvaluations": "Second Evaluations"
+  },
+  "controller": {
+    "dashboard": "Dashboard",
+    "examiners": "Examiners",
+    "flags": "Flags",
+    "moderation": "Moderation",
+    "results": "Results",
+    "completion": "Completion",
+    "sheetsPending": "Sheets Pending",
+    "flagsOpen": "Open Flags",
+    "moderationQueue": "Moderation Queue",
+    "dismiss": "Dismiss",
+    "escalate": "Escalate",
+    "sendToModeration": "Send to Moderation",
+    "reconcile": "Reconcile",
+    "finalize": "Finalize Results",
+    "exportResults": "Export Results"
+  },
+  "admin": {
+    "users": "Users",
+    "exams": "Exams & Papers",
+    "assignments": "Assignments",
+    "audit": "Audit Log",
+    "settings": "Settings",
+    "inviteUser": "Invite User",
+    "createExam": "Create Exam",
+    "createPaper": "Create Paper"
+  },
+  "flags": {
+    "blankAnswer": "Blank Answer",
+    "skippedQuestion": "Skipped Question",
+    "missingSignature": "Missing Signature",
+    "diagramMissing": "Diagram Missing",
+    "examinerOutlier": "Examiner Outlier",
+    "uniformMarks": "Uniform Marks",
+    "fastMarking": "Fast Marking",
+    "aiDivergence": "AI Divergence"
+  },
+  "severity": {
+    "low": "Low",
+    "medium": "Medium",
+    "high": "High"
+  },
+  "theme": {
+    "light": "Light",
+    "dark": "Dark",
+    "system": "System"
+  }
+}
