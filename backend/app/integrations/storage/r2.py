@@ -21,6 +21,11 @@ class R2StorageClient(StorageClient):
     def __init__(self) -> None:
         settings = get_settings()
         self._bucket = settings.r2_bucket
+        region = (
+            "auto"
+            if "r2.cloudflarestorage.com" in (settings.r2_endpoint or "")
+            else settings.r2_region
+        )
         self._client = boto3.client(
             "s3",
             endpoint_url=settings.r2_endpoint,
@@ -28,7 +33,7 @@ class R2StorageClient(StorageClient):
             aws_secret_access_key=settings.r2_secret_access_key,
             config=Config(
                 signature_version="s3v4",
-                region_name="auto",
+                region_name=region,
             ),
         )
 

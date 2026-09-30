@@ -72,7 +72,7 @@ async def get_my_queue(
     from app.modules.users.service import UserService
 
     user_svc = UserService(db)
-    user = await user_svc.get_user_by_firebase_uid(current_user.uid)
+    user = await user_svc.get_user_by_clerk_id(current_user.uid)
     if not user:
         return EvaluationListResponse(
             items=[], total=0, page=1, page_size=20, total_pages=0

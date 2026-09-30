@@ -70,9 +70,9 @@ async def get_current_user_profile(
 ):
     """Get the currently authenticated user's profile."""
     svc = UserService(db)
-    user = await svc.get_user_by_firebase_uid(current_user.uid)
+    user = await svc.get_user_by_clerk_id(current_user.uid)
     if not user:
-        # First login — auto-create from Firebase claims
+        # First login — auto-create from Clerk claims if needed
         from app.modules.users.schemas import UserCreate
         # This path shouldn't normally occur since admins create users first
         from app.core.errors import NotFoundError

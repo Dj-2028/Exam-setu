@@ -70,7 +70,7 @@ async def resolve_flag(
 ):
     from app.modules.users.service import UserService
     user_svc = UserService(db)
-    user = await user_svc.get_user_by_firebase_uid(current_user.uid)
+    user = await user_svc.get_user_by_clerk_id(current_user.uid)
     svc = FlagService(db)
     flag = await svc.resolve_flag(flag_id, data, user.id if user else None)
     return FlagResponse.model_validate(flag)
@@ -127,7 +127,7 @@ async def reconcile_moderation(
 ):
     from app.modules.users.service import UserService
     user_svc = UserService(db)
-    user = await user_svc.get_user_by_firebase_uid(current_user.uid)
+    user = await user_svc.get_user_by_clerk_id(current_user.uid)
     svc = ModerationService(db)
     case = await svc.reconcile(
         case_id, data.method, data.final_total, data.note,

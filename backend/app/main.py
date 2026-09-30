@@ -14,7 +14,6 @@ from fastapi.middleware.cors import CORSMiddleware
 from app.core.config import get_settings
 from app.core.errors import register_error_handlers
 from app.core.logging import get_logger, setup_logging
-from app.core.security import init_firebase
 
 logger = get_logger(__name__)
 
@@ -24,7 +23,6 @@ async def lifespan(app: FastAPI):
     """Application lifespan: setup and teardown."""
     settings = get_settings()
     setup_logging(settings.log_level)
-    init_firebase(settings)
 
     logger.info(
         "app_starting",

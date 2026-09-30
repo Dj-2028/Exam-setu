@@ -8,19 +8,24 @@ import {
   type ReactNode,
 } from "react";
 import {
-  auth,
-  onAuthStateChanged,
-  signInWithEmailAndPassword,
-  firebaseSignOut,
-  type User,
-} from "@/lib/auth/firebase";
+  useUser,
+  useAuth as useClerkAuth,
+  useClerk,
+} from "@clerk/nextjs";
 
 // ── Types ──
 
-type AuthState = "loading" | "signedIn" | "signedOut";
+export type AuthState = "loading" | "signedIn" | "signedOut";
 
-interface AuthContextValue {
-  user: User | null;
+export interface UserContextData {
+  uid: string;
+  id: string;
+  email: string;
+  name: string;
+}
+
+export interface AuthContextValue {
+  user: UserContextData | null;
   role: string;
   state: AuthState;
   token: string | null;
@@ -33,49 +38,97 @@ const AuthContext = createContext<AuthContextValue | null>(null);
 // ── Provider ──
 
 export function AuthProvider({ children }: { children: ReactNode }) {
-  const [user, setUser] = useState<User | null>(null);
+  const { isLoaded, isSignedIn, user: clerkUser } = useUser();
+  const { getToken } = useClerkAuth();
+  const clerk = useClerk();
+
   const [role, setRole] = useState<string>("");
   const [token, setToken] = useState<string | null>(null);
-  const [state, setState] = useState<AuthState>("loading");
 
   useEffect(() => {
-    // If Firebase is not initialized (e.g. during SSR or missing env vars),
-    // immediately set state to signedOut so the UI can render.
-    if (!auth) {
-      setState("signedOut");
-      return;
+    let active = true;
+
+    async function fetchTokenAndRole() {
+      if (!isLoaded) return;
+
+      if (isSignedIn && clerkUser) {
+        try {
+          const jwtToken = await getToken();
+          if (active) {
+            setToken(jwtToken);
+            // Check metadata claims, fallback to examiner
+            const metaRole =
+              (clerkUser.publicMetadata?.role as string) ||
+              (clerkUser.unsafeMetadata?.role as string) ||
+              "examiner";
+            setRole(metaRole);
+          }
+        } catch {
+          if (active) {
+            setToken(null);
+            setRole("examiner");
+          }
+        }
+      } else {
+        if (active) {
+          setToken(null);
+          setRole("");
+        }
+      }
     }
 
-    const unsubscribe = onAuthStateChanged(auth, async (firebaseUser) => {
-      if (firebaseUser) {
-        const idTokenResult = await firebaseUser.getIdTokenResult();
-        setUser(firebaseUser);
-        setRole((idTokenResult.claims.role as string) || "");
-        setToken(idTokenResult.token);
-        setState("signedIn");
-      } else {
-        setUser(null);
-        setRole("");
-        setToken(null);
-        setState("signedOut");
-      }
-    });
+    fetchTokenAndRole();
 
-    return unsubscribe;
-  }, []);
+    return () => {
+      active = false;
+    };
+  }, [isLoaded, isSignedIn, clerkUser, getToken]);
+
+  const state: AuthState = !isLoaded
+    ? "loading"
+    : isSignedIn
+    ? "signedIn"
+    : "signedOut";
 
   const signIn = async (email: string, password: string) => {
-    if (!auth) throw new Error("Firebase not initialized");
-    await signInWithEmailAndPassword(auth, email, password);
+    if (!clerk.client) {
+      throw new Error("Clerk authentication is initializing.");
+    }
+    const result = await clerk.client.signIn.create({
+      identifier: email,
+      password,
+    });
+    if (result.status === "complete" && result.createdSessionId) {
+      await clerk.setActive({ session: result.createdSessionId });
+    } else {
+      throw new Error(`Sign-in incomplete: status ${result.status}`);
+    }
   };
 
   const signOut = async () => {
-    if (!auth) return;
-    await firebaseSignOut(auth);
+    await clerk.signOut();
   };
 
+  const user: UserContextData | null = clerkUser
+    ? {
+        uid: clerkUser.id,
+        id: clerkUser.id,
+        email: clerkUser.primaryEmailAddress?.emailAddress || "",
+        name: clerkUser.fullName || clerkUser.firstName || "",
+      }
+    : null;
+
   return (
-    <AuthContext.Provider value={{ user, role, state, token, signIn, signOut }}>
+    <AuthContext.Provider
+      value={{
+        user,
+        role,
+        state,
+        token,
+        signIn,
+        signOut,
+      }}
+    >
       {children}
     </AuthContext.Provider>
   );

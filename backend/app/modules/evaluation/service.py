@@ -393,7 +393,7 @@ class EvaluationService:
         from app.modules.users.service import UserService
 
         user_svc = UserService(self._db)
-        user = await user_svc.get_user_by_firebase_uid(examiner_uid)
+        user = await user_svc.get_user_by_clerk_id(examiner_uid)
         if not user or user.id != evaluation.examiner_id:
             raise ForbiddenError("You are not assigned to this evaluation.")
 

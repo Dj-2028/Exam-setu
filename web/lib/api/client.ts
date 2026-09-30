@@ -1,11 +1,9 @@
 /**
  * API client with auth interceptor.
  *
- * Attaches the Firebase ID token as Bearer, handles 401 (refresh + retry),
+ * Attaches the Clerk session token as Bearer, handles 401 (redirect to login),
  * 403 (not authorized), and 5xx (generic error).
  */
-
-import { auth } from "@/lib/auth/firebase";
 
 const API_BASE = process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000";
 
@@ -26,20 +24,25 @@ class ApiClient {
   }
 
   private async getToken(): Promise<string | null> {
-    if (!auth) return null;
-    const user = auth.currentUser;
-    if (!user) return null;
+    if (typeof window === "undefined") return null;
+
     try {
-      return await user.getIdToken();
+      const clerk = (
+        window as unknown as {
+          Clerk?: { session?: { getToken: () => Promise<string | null> } };
+        }
+      ).Clerk;
+
+      if (clerk?.session) {
+        return await clerk.session.getToken();
+      }
     } catch {
       return null;
     }
+    return null;
   }
 
-  async request<T>(
-    path: string,
-    options: RequestInit = {}
-  ): Promise<T> {
+  async request<T>(path: string, options: RequestInit = {}): Promise<T> {
     const token = await this.getToken();
 
     const headers: Record<string, string> = {
@@ -58,26 +61,10 @@ class ApiClient {
 
     if (!response.ok) {
       if (response.status === 401) {
-        // Try to refresh the token once
-        const user = auth?.currentUser;
-        if (user) {
-          try {
-            const newToken = await user.getIdToken(true);
-            headers["Authorization"] = `Bearer ${newToken}`;
-            const retryResponse = await fetch(`${this.baseUrl}${path}`, {
-              ...options,
-              headers,
-            });
-            if (retryResponse.ok) {
-              return retryResponse.json() as Promise<T>;
-            }
-          } catch {
-            // Fall through to sign out
-          }
+        if (typeof window !== "undefined" && !window.location.pathname.startsWith("/login")) {
+          window.location.href = "/login";
         }
-        // Token refresh failed — sign out
-        window.location.href = "/login";
-        throw new Error("Session expired");
+        throw new Error("Session expired or unauthorized");
       }
 
       const errorBody: ApiError = await response.json().catch(() => ({

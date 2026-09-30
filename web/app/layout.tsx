@@ -1,6 +1,7 @@
 import type { Metadata } from "next";
 import { Inter, Noto_Sans_Devanagari } from "next/font/google";
 import "./globals.css";
+import { ClerkProvider } from "@clerk/nextjs";
 import { AuthProvider } from "@/lib/auth/AuthProvider";
 import { QueryProvider } from "@/lib/QueryProvider";
 import { ThemeProvider } from "@/lib/ThemeProvider";
@@ -37,18 +38,20 @@ export default function RootLayout({
   children: React.ReactNode;
 }>) {
   return (
-    <html
-      lang="en"
-      suppressHydrationWarning
-      className={`${inter.variable} ${devanagari.variable}`}
-    >
-      <body className="min-h-screen bg-background font-sans antialiased">
-        <ThemeProvider>
-          <AuthProvider>
-            <QueryProvider>{children}</QueryProvider>
-          </AuthProvider>
-        </ThemeProvider>
-      </body>
-    </html>
+    <ClerkProvider dynamic>
+      <html
+        lang="en"
+        suppressHydrationWarning
+        className={`${inter.variable} ${devanagari.variable}`}
+      >
+        <body className="min-h-screen bg-background font-sans antialiased">
+          <ThemeProvider>
+            <AuthProvider>
+              <QueryProvider>{children}</QueryProvider>
+            </AuthProvider>
+          </ThemeProvider>
+        </body>
+      </html>
+    </ClerkProvider>
   );
 }

@@ -1,4 +1,4 @@
-"""User model — maps to Firebase UID, stores role and profile."""
+"""User model — maps to Clerk User ID, stores role and profile."""
 
 from __future__ import annotations
 
@@ -14,9 +14,10 @@ from app.db.base import Base
 
 
 class User(Base):
-    """Platform user (examiner, controller, admin).
+    """
+    Platform user (examiner, controller, admin).
 
-    The canonical identity comes from Firebase Auth.
+    The canonical identity comes from Clerk Auth.
     This table stores the role and internal metadata.
     """
 
@@ -25,7 +26,7 @@ class User(Base):
     id: Mapped[UUID] = mapped_column(
         PGUUID(as_uuid=True), primary_key=True, default=new_id
     )
-    firebase_uid: Mapped[str] = mapped_column(
+    clerk_user_id: Mapped[str] = mapped_column(
         String(128), unique=True, nullable=False, index=True
     )
     email: Mapped[str] = mapped_column(String(255), unique=True, nullable=False)

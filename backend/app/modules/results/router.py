@@ -84,7 +84,7 @@ async def create_export(
     from app.modules.users.service import UserService
 
     user_svc = UserService(db)
-    user = await user_svc.get_user_by_firebase_uid(current_user.uid)
+    user = await user_svc.get_user_by_clerk_id(current_user.uid)
 
     svc = ResultsService(db)
     job = await svc.generate_export(

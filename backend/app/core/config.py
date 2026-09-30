@@ -6,7 +6,7 @@ The app fails fast if required values are missing.
 
 from __future__ import annotations
 
-from pydantic import Field
+from pydantic import Field, field_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
 
@@ -31,21 +31,36 @@ class Settings(BaseSettings):
         ..., description="Async Postgres URL (postgresql+asyncpg://...)"
     )
 
+    @field_validator("database_url", mode="after")
+    @classmethod
+    def assemble_db_connection(cls, v: str) -> str:
+        if v.startswith("postgresql://"):
+            return v.replace("postgresql://", "postgresql+asyncpg://", 1)
+        return v
+
     # ── Redis ──
     redis_url: str = Field(default="redis://localhost:6379")
 
-    # ── Firebase ──
-    firebase_project_id: str = Field(...)
-    firebase_service_account: str = Field(
-        default="{}",
-        description="JSON string of the Firebase service account key",
+    # ── Clerk Auth ──
+    clerk_secret_key: str = Field(
+        default="",
+        description="Clerk secret key (sk_test_...)",
+    )
+    clerk_publishable_key: str = Field(
+        default="",
+        description="Clerk publishable key (pk_test_...)",
+    )
+    clerk_jwks_url: str = Field(
+        default="https://api.clerk.com/v1/jwks",
+        description="Clerk JWKS URL for JWT verification",
     )
 
-    # ── Object Storage (R2) ──
+    # ── Object Storage (S3 / R2 / Supabase) ──
     r2_endpoint: str = Field(...)
     r2_access_key_id: str = Field(...)
     r2_secret_access_key: str = Field(...)
     r2_bucket: str = Field(default="examsetu-scans")
+    r2_region: str = Field(default="us-east-1")
 
     # ── AI Providers ──
     gemini_api_key: str = Field(...)
