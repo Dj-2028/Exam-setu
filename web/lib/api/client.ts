@@ -5,7 +5,8 @@
  * 403 (not authorized), and 5xx (generic error).
  */
 
-const API_BASE = process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000";
+const rawBase = process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000";
+const API_BASE = rawBase.endsWith("/api/v1") ? rawBase : `${rawBase.replace(/\/+$/, "")}/api/v1`;
 
 interface ApiError {
   error: {
@@ -52,6 +53,13 @@ class ApiClient {
 
     if (token) {
       headers["Authorization"] = `Bearer ${token}`;
+    }
+
+    if (typeof window !== "undefined") {
+      const devRole = localStorage.getItem("dev_role_override");
+      if (devRole) {
+        headers["X-Dev-Role"] = devRole;
+      }
     }
 
     const response = await fetch(`${this.baseUrl}${path}`, {
@@ -112,4 +120,4 @@ class ApiClient {
   }
 }
 
-export const api = new ApiClient(`${API_BASE}/api/v1`);
+export const api = new ApiClient(API_BASE);

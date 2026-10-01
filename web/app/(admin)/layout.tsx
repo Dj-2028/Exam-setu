@@ -18,7 +18,7 @@ import {
 } from "lucide-react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { cn } from "@/lib/utils";
 
 /**
@@ -45,11 +45,18 @@ const navItems = [
 ];
 
 function AdminShell({ children }: { children: React.ReactNode }) {
-  const { signOut } = useAuth();
+  const { signOut, role, setDevRole } = useAuth();
   const { theme, setTheme } = useTheme();
+  const [mounted, setMounted] = useState(false);
   const pathname = usePathname();
   const [sidebarOpen, setSidebarOpen] = useState(false);
   const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
+
+  useEffect(() => {
+    setMounted(true);
+  }, []);
+
+  const activeTheme = mounted ? theme : undefined;
 
   return (
     <div className="min-h-screen bg-background">
@@ -158,14 +165,33 @@ function AdminShell({ children }: { children: React.ReactNode }) {
           </div>
 
           <div className="flex items-center gap-2">
+            <select
+              value={role}
+              onChange={(e) => {
+                const newRole = e.target.value;
+                setDevRole(newRole);
+                const roleHomeMap: Record<string, string> = {
+                  admin: "/admin/users",
+                  controller: "/controller/dashboard",
+                  examiner: "/examiner",
+                };
+                window.location.href = roleHomeMap[newRole] || "/login";
+              }}
+              className="rounded-lg border border-border bg-card px-2.5 py-1 text-xs font-semibold text-foreground focus:outline-none cursor-pointer"
+            >
+              <option value="admin">Admin Portal</option>
+              <option value="controller">Controller Portal</option>
+              <option value="examiner">Examiner Portal</option>
+            </select>
+
             <div className="hidden sm:flex gap-0.5 rounded-lg bg-muted p-0.5">
-              <button onClick={() => setTheme("light")} className={`rounded-md p-1.5 transition-colors ${theme === "light" ? "bg-card shadow-sm" : "text-muted-foreground hover:text-foreground"}`}>
+              <button onClick={() => setTheme("light")} className={`rounded-md p-1.5 transition-colors ${activeTheme === "light" ? "bg-card shadow-sm" : "text-muted-foreground hover:text-foreground"}`}>
                 <Sun size={14} />
               </button>
-              <button onClick={() => setTheme("dark")} className={`rounded-md p-1.5 transition-colors ${theme === "dark" ? "bg-card shadow-sm" : "text-muted-foreground hover:text-foreground"}`}>
+              <button onClick={() => setTheme("dark")} className={`rounded-md p-1.5 transition-colors ${activeTheme === "dark" ? "bg-card shadow-sm" : "text-muted-foreground hover:text-foreground"}`}>
                 <Moon size={14} />
               </button>
-              <button onClick={() => setTheme("system")} className={`rounded-md p-1.5 transition-colors ${theme === "system" ? "bg-card shadow-sm" : "text-muted-foreground hover:text-foreground"}`}>
+              <button onClick={() => setTheme("system")} className={`rounded-md p-1.5 transition-colors ${activeTheme === "system" ? "bg-card shadow-sm" : "text-muted-foreground hover:text-foreground"}`}>
                 <Monitor size={14} />
               </button>
             </div>

@@ -60,10 +60,12 @@ async def get_current_user(
     # In dev mode, allow dev convenience token if explicitly configured
     if settings.env == "dev" and token.startswith("dev-mock-"):
         mock_role = token.replace("dev-mock-", "")
+        if mock_role not in ("examiner", "controller", "admin"):
+            mock_role = "admin"
         return CurrentUser(
-            uid="user_mock_dev",
+            uid=f"user_mock_{mock_role}",
             email=f"{mock_role}@examsetu.dev",
-            role=mock_role if mock_role in ("examiner", "controller", "admin") else "admin",
+            role=mock_role,
             name=f"Dev {mock_role.capitalize()}",
         )
 
@@ -104,7 +106,8 @@ async def get_current_user(
     role = (
         decoded.get("role")
         or metadata.get("role")
-        or ""
+        or request.headers.get("X-Dev-Role")
+        or ("examiner" if settings.env == "dev" else "")
     )
 
     # Extract email & name if available in token

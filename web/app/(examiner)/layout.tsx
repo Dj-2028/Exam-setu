@@ -6,7 +6,7 @@ import { useTheme } from "next-themes";
 import { SaveStatus } from "@/components/shared/SaveStatus";
 import { Sun, Moon, Monitor, LogOut, Menu } from "lucide-react";
 import Link from "next/link";
-import { useState } from "react";
+import { useState, useEffect } from "react";
 
 /**
  * Examiner layout: top bar only (focused on the task),
@@ -25,9 +25,16 @@ export default function ExaminerLayout({
 }
 
 function ExaminerShell({ children }: { children: React.ReactNode }) {
-  const { signOut } = useAuth();
+  const { signOut, role, setDevRole } = useAuth();
   const { theme, setTheme } = useTheme();
+  const [mounted, setMounted] = useState(false);
   const [menuOpen, setMenuOpen] = useState(false);
+
+  useEffect(() => {
+    setMounted(true);
+  }, []);
+
+  const activeTheme = mounted ? theme : undefined;
 
   return (
     <div className="min-h-screen bg-background">
@@ -57,23 +64,41 @@ function ExaminerShell({ children }: { children: React.ReactNode }) {
 
         {/* Right */}
         <div className="flex items-center gap-2">
+          <select
+            value={role || "examiner"}
+            onChange={(e) => {
+              const newRole = e.target.value;
+              setDevRole(newRole);
+              const roleHomeMap: Record<string, string> = {
+                admin: "/admin/users",
+                controller: "/controller/dashboard",
+                examiner: "/examiner",
+              };
+              window.location.href = roleHomeMap[newRole] || "/login";
+            }}
+            className="rounded-lg border border-border bg-card px-2.5 py-1 text-xs font-semibold text-foreground focus:outline-none cursor-pointer"
+          >
+            <option value="admin">Admin Portal</option>
+            <option value="controller">Controller Portal</option>
+            <option value="examiner">Examiner Portal</option>
+          </select>
           {/* Theme */}
           <div className="hidden sm:flex gap-0.5 rounded-lg bg-muted p-0.5">
             <button
               onClick={() => setTheme("light")}
-              className={`rounded-md p-1.5 transition-colors ${theme === "light" ? "bg-card shadow-sm" : "text-muted-foreground hover:text-foreground"}`}
+              className={`rounded-md p-1.5 transition-colors ${activeTheme === "light" ? "bg-card shadow-sm" : "text-muted-foreground hover:text-foreground"}`}
             >
               <Sun size={14} />
             </button>
             <button
               onClick={() => setTheme("dark")}
-              className={`rounded-md p-1.5 transition-colors ${theme === "dark" ? "bg-card shadow-sm" : "text-muted-foreground hover:text-foreground"}`}
+              className={`rounded-md p-1.5 transition-colors ${activeTheme === "dark" ? "bg-card shadow-sm" : "text-muted-foreground hover:text-foreground"}`}
             >
               <Moon size={14} />
             </button>
             <button
               onClick={() => setTheme("system")}
-              className={`rounded-md p-1.5 transition-colors ${theme === "system" ? "bg-card shadow-sm" : "text-muted-foreground hover:text-foreground"}`}
+              className={`rounded-md p-1.5 transition-colors ${activeTheme === "system" ? "bg-card shadow-sm" : "text-muted-foreground hover:text-foreground"}`}
             >
               <Monitor size={14} />
             </button>

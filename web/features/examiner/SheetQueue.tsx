@@ -34,7 +34,11 @@ function formatDuration(seconds: number): string {
   return `${m}m`;
 }
 
-export function SheetQueue() {
+interface SheetQueueProps {
+  evaluationType?: "primary" | "secondary";
+}
+
+export function SheetQueue({ evaluationType }: SheetQueueProps = {}) {
   const [evaluations, setEvaluations] = useState<Evaluation[]>([]);
   const [loading, setLoading] = useState(true);
   const [filter, setFilter] = useState<string>("all");
@@ -46,7 +50,11 @@ export function SheetQueue() {
         const data = await api.get<{ items: Evaluation[] }>(
           `/evaluations/my-queue${params}`
         );
-        setEvaluations(data.items);
+        let items = data.items || [];
+        if (evaluationType) {
+          items = items.filter((e) => e.evaluation_type === evaluationType);
+        }
+        setEvaluations(items);
       } catch {
         // Handle error
       } finally {
@@ -54,7 +62,7 @@ export function SheetQueue() {
       }
     };
     load();
-  }, [filter]);
+  }, [filter, evaluationType]);
 
   if (loading) {
     return (

@@ -40,7 +40,7 @@ export function ScriptUpload({ paperId, onComplete }: ScriptUploadProps) {
       const newItems: UploadItem[] = Array.from(files)
         .filter((f) => f.type === "application/pdf")
         .map((file) => ({
-          barcode: file.name.replace(/\.pdf$/i, ""),
+          barcode: `${file.name.replace(/\.pdf$/i, "")}-${Math.floor(1000 + Math.random() * 9000)}`,
           file,
           status: "pending" as const,
           progress: 0,
@@ -78,12 +78,37 @@ export function ScriptUpload({ paperId, onComplete }: ScriptUploadProps) {
           scriptId: initResponse.script_id,
         });
 
-        // Step 2: Upload file directly to R2 via pre-signed URL
-        await fetch(initResponse.upload_url, {
-          method: "PUT",
-          body: item.file,
-          headers: { "Content-Type": "application/pdf" },
-        });
+        // Step 2: Upload file directly to R2 via pre-signed URL with backend fallback
+        let directUploaded = false;
+        try {
+          const s3Res = await fetch(initResponse.upload_url, {
+            method: "PUT",
+            body: item.file,
+            headers: { "Content-Type": "application/pdf" },
+          });
+          if (s3Res.ok) {
+            directUploaded = true;
+          }
+        } catch (s3Err) {
+          console.warn("Direct pre-signed upload failed (CORS/network), trying backend direct upload fallback:", s3Err);
+        }
+
+        if (!directUploaded) {
+          const formData = new FormData();
+          formData.append("file", item.file);
+          const devRole = typeof window !== "undefined" ? localStorage.getItem("dev_role_override") || "admin" : "admin";
+          const backendApiUrl = process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000/api/v1";
+          const fallbackRes = await fetch(`${backendApiUrl}/scripts/upload-direct/${initResponse.script_id}`, {
+            method: "POST",
+            body: formData,
+            headers: {
+              "X-Dev-Role": devRole,
+            },
+          });
+          if (!fallbackRes.ok) {
+            throw new Error(`Direct upload failed with status ${fallbackRes.status}`);
+          }
+        }
 
         updateItem(item.barcode, { progress: 60 });
 

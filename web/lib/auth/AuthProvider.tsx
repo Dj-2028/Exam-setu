@@ -12,6 +12,7 @@ import {
   useAuth as useClerkAuth,
   useClerk,
 } from "@clerk/nextjs";
+import { api } from "@/lib/api/client";
 
 // ── Types ──
 
@@ -31,6 +32,7 @@ export interface AuthContextValue {
   token: string | null;
   signIn: (email: string, password: string) => Promise<void>;
   signOut: () => Promise<void>;
+  setDevRole: (newRole: string) => void;
 }
 
 const AuthContext = createContext<AuthContextValue | null>(null);
@@ -42,8 +44,17 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const { getToken } = useClerkAuth();
   const clerk = useClerk();
 
-  const [role, setRole] = useState<string>("");
+  const [role, setRoleState] = useState<string>("");
   const [token, setToken] = useState<string | null>(null);
+
+  const setDevRole = (newRole: string) => {
+    try {
+      localStorage.setItem("dev_role_override", newRole);
+    } catch {
+      // Ignore storage errors
+    }
+    setRoleState(newRole);
+  };
 
   useEffect(() => {
     let active = true;
@@ -54,25 +65,46 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       if (isSignedIn && clerkUser) {
         try {
           const jwtToken = await getToken();
+          if (!active) return;
+          setToken(jwtToken);
+
+          // 1. Check local dev role override first
+          const localOverride = typeof window !== "undefined" ? localStorage.getItem("dev_role_override") : null;
+          if (localOverride && ["examiner", "controller", "admin"].includes(localOverride)) {
+            setRoleState(localOverride);
+            return;
+          }
+
+          // 2. Fetch backend profile from FastAPI /users/me
+          try {
+            const profile = await api.get<{ role: string }>("/users/me");
+            if (active && profile?.role) {
+              setRoleState(profile.role);
+              return;
+            }
+          } catch {
+            // If API fails or user not created yet, fallback
+          }
+
+          // 3. Fallback to Clerk metadata or default admin/examiner
+          const metaRole =
+            (clerkUser.publicMetadata?.role as string) ||
+            (clerkUser.unsafeMetadata?.role as string) ||
+            "admin"; // Default to admin for seamless navigation in dev
+          
           if (active) {
-            setToken(jwtToken);
-            // Check metadata claims, fallback to examiner
-            const metaRole =
-              (clerkUser.publicMetadata?.role as string) ||
-              (clerkUser.unsafeMetadata?.role as string) ||
-              "examiner";
-            setRole(metaRole);
+            setRoleState(metaRole);
           }
         } catch {
           if (active) {
             setToken(null);
-            setRole("examiner");
+            setRoleState("admin");
           }
         }
       } else {
         if (active) {
           setToken(null);
-          setRole("");
+          setRoleState("");
         }
       }
     }
@@ -106,6 +138,11 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   };
 
   const signOut = async () => {
+    try {
+      localStorage.removeItem("dev_role_override");
+    } catch {
+      // Ignore
+    }
     await clerk.signOut();
   };
 
@@ -127,6 +164,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         token,
         signIn,
         signOut,
+        setDevRole,
       }}
     >
       {children}

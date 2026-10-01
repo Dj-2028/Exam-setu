@@ -44,7 +44,6 @@ def create_app() -> FastAPI:
         docs_url="/docs" if not settings.is_production else None,
         redoc_url="/redoc" if not settings.is_production else None,
         lifespan=lifespan,
-        default_response_class=None,
     )
 
     # ── CORS ──
@@ -68,7 +67,18 @@ def create_app() -> FastAPI:
     # ── Error handlers ──
     register_error_handlers(app)
 
-    # ── Health checks ──
+    # ── Root & Health checks ──
+    @app.get("/", tags=["system"])
+    async def root():
+        """Root endpoint explaining backend status and links."""
+        return {
+            "name": "ExamSetu AI Backend API",
+            "status": "online",
+            "docs": "/docs",
+            "frontend": settings.cors_origins[0] if settings.cors_origins else "http://localhost:3000",
+            "message": "Welcome to ExamSetu AI API. Visit /docs for interactive Swagger API documentation, or open http://localhost:3000 for the user interface."
+        }
+
     @app.get("/health/live", tags=["system"])
     async def health_live():
         """Liveness check — process is up."""
@@ -97,6 +107,7 @@ def _register_routers(app: FastAPI) -> None:
     from app.modules.analytics.router import router as analytics_router
     from app.modules.results.router import router as results_router
     from app.modules.realtime.router import router as realtime_router
+    from app.modules.audit.router import router as audit_router
 
     api_prefix = "/api/v1"
     app.include_router(auth_router, prefix=api_prefix)
@@ -108,6 +119,7 @@ def _register_routers(app: FastAPI) -> None:
     app.include_router(analytics_router, prefix=api_prefix)
     app.include_router(results_router, prefix=api_prefix)
     app.include_router(realtime_router, prefix=api_prefix)
+    app.include_router(audit_router, prefix=api_prefix)
 
 
 # Application instance (used by uvicorn)

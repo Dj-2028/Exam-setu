@@ -1,10 +1,10 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, useCallback } from "react";
 import { api } from "@/lib/api/client";
 import { cn } from "@/lib/utils";
 import { EmptyState } from "@/components/shared/EmptyState";
-import { Loader2, AlertTriangle, Check, X, ChevronUp } from "lucide-react";
+import { Loader2, AlertTriangle, Check, X, ChevronUp, RefreshCw, AlertCircle } from "lucide-react";
 
 interface FlagItem {
   id: string;
@@ -38,46 +38,86 @@ export default function FlagsPage() {
   const [flags, setFlags] = useState<FlagItem[]>([]);
   const [loading, setLoading] = useState(true);
   const [filter, setFilter] = useState<string>("open");
+  const [actionLoading, setActionLoading] = useState<string | null>(null);
+  const [error, setError] = useState<string | null>(null);
 
-  useEffect(() => {
-    const load = async () => {
-      setLoading(true);
-      try {
-        const params = filter !== "all" ? `?status=${filter}` : "";
-        const data = await api.get<{ items: FlagItem[] }>(
-          `/flags${params}`
-        );
-        setFlags(data.items);
-      } catch {
-        setFlags([]);
-      } finally {
-        setLoading(false);
-      }
-    };
-    load();
+  const fetchFlags = useCallback(async () => {
+    setLoading(true);
+    setError(null);
+    try {
+      const params = filter !== "all" ? `?status=${filter}` : "";
+      const data = await api.get<{ items: FlagItem[] }>(`/flags${params}`);
+      setFlags(data.items || []);
+    } catch (err: any) {
+      setError(err?.error?.message || err?.message || "Failed to load flags.");
+      setFlags([]);
+    } finally {
+      setLoading(false);
+    }
   }, [filter]);
 
+  useEffect(() => {
+    fetchFlags();
+  }, [fetchFlags]);
+
+  const handleResolveFlag = async (flagId: string, status: "acknowledged" | "dismissed" | "escalated") => {
+    setActionLoading(flagId);
+    try {
+      await api.post(`/flags/${flagId}/resolve`, {
+        status,
+        resolution_note: `Action '${status}' taken by controller from dashboard.`,
+      });
+      await fetchFlags();
+    } catch (err: any) {
+      alert(err?.error?.message || err?.message || "Failed to resolve flag");
+    } finally {
+      setActionLoading(null);
+    }
+  };
+
   return (
-    <div>
-      <div className="flex items-center justify-between mb-6">
-        <h1 className="text-xl font-bold text-foreground">Flags</h1>
-        <div className="flex gap-1 rounded-lg bg-muted p-1">
-          {["open", "acknowledged", "dismissed", "all"].map((f) => (
-            <button
-              key={f}
-              onClick={() => setFilter(f)}
-              className={cn(
-                "rounded-md px-3 py-1.5 text-xs font-medium capitalize transition-colors",
-                filter === f
-                  ? "bg-card text-foreground shadow-sm"
-                  : "text-muted-foreground hover:text-foreground"
-              )}
-            >
-              {f}
-            </button>
-          ))}
+    <div className="space-y-4">
+      <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
+        <div>
+          <h1 className="text-xl font-bold text-foreground">Audit Flags</h1>
+          <p className="text-xs text-muted-foreground mt-0.5">
+            Monitor and resolve system-detected anomalies and examiner manual flags
+          </p>
+        </div>
+
+        <div className="flex items-center gap-2">
+          <button
+            onClick={() => fetchFlags()}
+            className="rounded-lg border border-border bg-card p-2 text-muted-foreground hover:text-foreground"
+            title="Refresh"
+          >
+            <RefreshCw className="h-4 w-4" />
+          </button>
+          <div className="flex gap-1 rounded-lg bg-muted p-1 text-xs">
+            {["open", "acknowledged", "dismissed", "all"].map((f) => (
+              <button
+                key={f}
+                onClick={() => setFilter(f)}
+                className={cn(
+                  "rounded-md px-3 py-1.5 capitalize font-medium transition-colors",
+                  filter === f
+                    ? "bg-card text-foreground shadow-sm font-semibold"
+                    : "text-muted-foreground hover:text-foreground"
+                )}
+              >
+                {f}
+              </button>
+            ))}
+          </div>
         </div>
       </div>
+
+      {error && (
+        <div className="flex items-center gap-2 rounded-xl border border-destructive/20 bg-destructive/10 p-4 text-xs text-destructive">
+          <AlertCircle className="h-4 w-4 shrink-0" />
+          <span>{error}</span>
+        </div>
+      )}
 
       {loading ? (
         <div className="flex items-center justify-center py-12">
@@ -113,12 +153,12 @@ export default function FlagsPage() {
                 />
                 <div className="flex-1 min-w-0">
                   <div className="flex items-center gap-2 mb-1">
-                    <span className="text-sm font-medium text-foreground">
+                    <span className="text-sm font-semibold text-foreground">
                       {typeLabels[flag.flag_type] || flag.flag_type}
                     </span>
                     <span
                       className={cn(
-                        "rounded-full border px-2 py-0.5 text-xs font-medium",
+                        "rounded-full border px-2 py-0.5 text-[10px] font-semibold capitalize",
                         severityStyles[flag.severity]
                       )}
                     >
@@ -128,33 +168,45 @@ export default function FlagsPage() {
                       by {flag.raised_by}
                     </span>
                   </div>
-                  <p className="text-sm text-muted-foreground">{flag.message}</p>
-                  <span className="text-xs text-muted-foreground mt-1 block">
+                  <p className="text-xs text-muted-foreground">{flag.message}</p>
+                  <span className="text-[11px] text-muted-foreground mt-1 block font-mono">
                     {new Date(flag.created_at).toLocaleString("en-IN")}
                   </span>
                 </div>
 
                 {flag.status === "open" && (
-                  <div className="flex gap-1 shrink-0">
+                  <div className="flex gap-1.5 shrink-0">
                     <button
-                      className="rounded-lg border border-border p-1.5 text-muted-foreground hover:text-success hover:border-success/30 transition-colors"
-                      title="Acknowledge"
+                      onClick={() => handleResolveFlag(flag.id, "acknowledged")}
+                      disabled={actionLoading === flag.id}
+                      className="flex items-center gap-1 rounded-lg border border-border px-2.5 py-1 text-xs font-medium text-emerald-600 hover:bg-emerald-500/10 transition-colors disabled:opacity-50"
+                      title="Acknowledge Flag"
                     >
-                      <Check className="h-4 w-4" />
+                      <Check className="h-3.5 w-3.5" /> Acknowledge
                     </button>
                     <button
-                      className="rounded-lg border border-border p-1.5 text-muted-foreground hover:text-destructive hover:border-destructive/30 transition-colors"
-                      title="Dismiss"
+                      onClick={() => handleResolveFlag(flag.id, "dismissed")}
+                      disabled={actionLoading === flag.id}
+                      className="flex items-center gap-1 rounded-lg border border-border px-2.5 py-1 text-xs font-medium text-muted-foreground hover:bg-muted transition-colors disabled:opacity-50"
+                      title="Dismiss Flag"
                     >
-                      <X className="h-4 w-4" />
+                      <X className="h-3.5 w-3.5" /> Dismiss
                     </button>
                     <button
-                      className="rounded-lg border border-border p-1.5 text-muted-foreground hover:text-warning hover:border-warning/30 transition-colors"
-                      title="Escalate"
+                      onClick={() => handleResolveFlag(flag.id, "escalated")}
+                      disabled={actionLoading === flag.id}
+                      className="flex items-center gap-1 rounded-lg border border-border px-2.5 py-1 text-xs font-medium text-amber-600 hover:bg-amber-500/10 transition-colors disabled:opacity-50"
+                      title="Escalate Flag"
                     >
-                      <ChevronUp className="h-4 w-4" />
+                      <ChevronUp className="h-3.5 w-3.5" /> Escalate
                     </button>
                   </div>
+                )}
+
+                {flag.status !== "open" && (
+                  <span className="rounded-full bg-muted px-2.5 py-0.5 text-[10px] font-semibold capitalize text-muted-foreground">
+                    {flag.status}
+                  </span>
                 )}
               </div>
             </div>

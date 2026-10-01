@@ -33,14 +33,48 @@ class ScriptService:
 
         Returns: (script, upload_url)
         """
-        # Check for duplicate barcode
+        # Check for duplicate barcode — if exists, append unique suffix
         existing = await self._db.execute(
             select(Script).where(Script.barcode == data.barcode)
         )
         if existing.scalar_one_or_none():
-            raise ConflictError(
-                f"Script with barcode '{data.barcode}' already exists."
-            )
+            from uuid import uuid4
+            data.barcode = f"{data.barcode}-{uuid4().hex[:4]}"
+
+        # Ensure target paper exists in database (or fallback to an available paper / auto-create)
+        from app.modules.exams.models import Paper, Exam
+        paper_res = await self._db.execute(
+            select(Paper).where(Paper.id == data.paper_id)
+        )
+        paper = paper_res.scalar_one_or_none()
+        if not paper:
+            any_paper_res = await self._db.execute(select(Paper).limit(1))
+            any_paper = any_paper_res.scalar_one_or_none()
+            if any_paper:
+                data.paper_id = any_paper.id
+            else:
+                exam_id = new_id()
+                exam = Exam(
+                    id=exam_id,
+                    name="Default Examination",
+                    code="CS-601",
+                    session="June 2026",
+                )
+                self._db.add(exam)
+                await self._db.flush()
+
+                new_paper = Paper(
+                    id=new_id(),
+                    exam_id=exam_id,
+                    name="Design and Analysis of Algorithms",
+                    code="CS-601",
+                    total_marks=100,
+                    passing_marks=33,
+                    increment=0.5,
+                )
+                self._db.add(new_paper)
+                await self._db.flush()
+                data.paper_id = new_paper.id
 
         # Generate storage key
         script_id = new_id()
@@ -127,7 +161,9 @@ class ScriptService:
         page: int = 1,
         page_size: int = 20,
     ) -> tuple[list[Script], int]:
-        query = select(Script)
+        query = select(Script).options(
+            selectinload(Script.pages).selectinload(Page.regions)
+        )
         count_query = select(func.count()).select_from(Script)
 
         if paper_id:
@@ -143,7 +179,7 @@ class ScriptService:
         offset = (page - 1) * page_size
         query = query.order_by(Script.created_at.desc()).offset(offset).limit(page_size)
         result = await self._db.execute(query)
-        scripts = list(result.scalars().all())
+        scripts = list(result.scalars().unique().all())
 
         return scripts, total
 

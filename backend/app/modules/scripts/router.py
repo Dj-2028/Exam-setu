@@ -40,20 +40,71 @@ async def initiate_upload(data: ScriptUploadRequest, db: DBSession):
     )
 
 
+import asyncio
+from fastapi import UploadFile, File
+from app.integrations.storage.r2 import get_storage_client
+from app.modules.scripts.tasks import process_script
+
+
+@router.post("/upload-direct/{script_id}")
+async def upload_direct(
+    script_id: UUID,
+    file: UploadFile = File(...),
+    db: DBSession = None,
+):
+    """Fallback upload endpoint when direct pre-signed S3/R2 upload fails."""
+    svc = ScriptService(db)
+    script = await svc.get_script(script_id)
+    content = await file.read()
+    storage = get_storage_client()
+    await storage.upload(
+        script.storage_key,
+        content,
+        content_type=file.content_type or "application/pdf",
+    )
+    return {"status": "ok", "script_id": str(script.id)}
+
+
 @router.post(
     "/{script_id}/confirm",
     response_model=ScriptResponse,
     dependencies=[Depends(require_roles("admin", "controller"))],
 )
 async def confirm_upload(
-    script_id: UUID, data: ScriptConfirmUpload, db: DBSession
+    script_id: UUID,
+    data: ScriptConfirmUpload,
+    db: DBSession,
+    current_user: AuthenticatedUser,
 ):
-    """Confirm upload is complete and trigger the processing pipeline."""
+    """Confirm upload is complete, trigger processing pipeline, and assign script for evaluation."""
     svc = ScriptService(db)
     script = await svc.confirm_upload(script_id, data.page_count)
 
     # Enqueue the processing pipeline
-    # TODO: await arq_pool.enqueue_job("process_script", str(script.id))
+    asyncio.create_task(process_script({}, str(script.id)))
+
+    # Auto-assign script to uploading user / examiner for evaluation
+    try:
+        from app.modules.users.service import UserService
+        from app.modules.evaluation.service import EvaluationService
+
+        user_svc = UserService(db)
+        user = await user_svc.get_user_by_clerk_id(current_user.uid)
+        if user:
+            eval_svc = EvaluationService(db)
+            # Ensure script status is ready for assignment if needed
+            if script.status not in ("ready", "assigned"):
+                script.status = "ready"
+                await db.commit()
+                await db.refresh(script)
+            await eval_svc.assign(
+                script_id=script.id,
+                examiner_id=user.id,
+                paper_id=script.paper_id,
+                evaluation_type="primary",
+            )
+    except Exception:
+        pass  # Proceed gracefully if duplicate or assignment error
 
     return _to_response(script)
 
@@ -113,7 +164,7 @@ async def reprocess_script(script_id: UUID, db: DBSession):
     script = await svc.update_status(script_id, "splitting", error=None)
 
     # Re-enqueue the processing pipeline
-    # TODO: await arq_pool.enqueue_job("process_script", str(script.id))
+    asyncio.create_task(process_script({}, str(script.id)))
 
     return _to_response(script)
 

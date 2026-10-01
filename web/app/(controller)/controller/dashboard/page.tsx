@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, useCallback } from "react";
 import { api } from "@/lib/api/client";
 import { cn } from "@/lib/utils";
 import {
@@ -29,32 +29,45 @@ export default function ControllerDashboardPage() {
   const [stats, setStats] = useState<DashboardStats | null>(null);
   const [loading, setLoading] = useState(true);
 
-  const fetchStats = async () => {
+  const fetchStats = useCallback(async () => {
     setLoading(true);
     try {
-      // In production, this would call a dedicated /analytics/dashboard endpoint
-      // For now, aggregate from existing endpoints
-      const [scripts, flags, moderation] = await Promise.allSettled([
+      const [
+        totalRes,
+        evaluatedRes,
+        inProgressRes,
+        flagsRes,
+        moderationRes,
+        examinersRes,
+      ] = await Promise.allSettled([
         api.get<{ total: number }>("/scripts?page_size=1"),
+        api.get<{ total: number }>("/scripts?status=evaluated&page_size=1"),
+        api.get<{ total: number }>("/scripts?status=evaluation_in_progress&page_size=1"),
         api.get<{ total: number }>("/flags?status=open&page_size=1"),
         api.get<{ total: number }>("/moderation?status=pending_routing&page_size=1"),
+        api.get<{ total: number }>("/users?role=examiner&page_size=1"),
       ]);
 
+      const total = totalRes.status === "fulfilled" ? totalRes.value.total : 0;
+      const evaluated = evaluatedRes.status === "fulfilled" ? evaluatedRes.value.total : 0;
+      const inProgress = inProgressRes.status === "fulfilled" ? inProgressRes.value.total : 0;
+      const openFlags = flagsRes.status === "fulfilled" ? flagsRes.value.total : 0;
+      const moderationPending = moderationRes.status === "fulfilled" ? moderationRes.value.total : 0;
+      const examiners = examinersRes.status === "fulfilled" ? examinersRes.value.total : 0;
+      
+      const completionPercent = total > 0 ? Math.round((evaluated / total) * 100) : 0;
+
       setStats({
-        total_scripts:
-          scripts.status === "fulfilled" ? scripts.value.total : 0,
-        scripts_evaluated: 0,
-        scripts_pending: 0,
-        scripts_in_progress: 0,
-        open_flags:
-          flags.status === "fulfilled" ? flags.value.total : 0,
-        moderation_pending:
-          moderation.status === "fulfilled" ? moderation.value.total : 0,
-        active_examiners: 0,
-        completion_percent: 0,
+        total_scripts: total,
+        scripts_evaluated: evaluated,
+        scripts_pending: Math.max(0, total - evaluated - inProgress),
+        scripts_in_progress: inProgress,
+        open_flags: openFlags,
+        moderation_pending: moderationPending,
+        active_examiners: examiners,
+        completion_percent: completionPercent,
       });
     } catch {
-      // Use defaults
       setStats({
         total_scripts: 0,
         scripts_evaluated: 0,
@@ -68,20 +81,20 @@ export default function ControllerDashboardPage() {
     } finally {
       setLoading(false);
     }
-  };
+  }, []);
 
   useEffect(() => {
     fetchStats();
-  }, []);
+  }, [fetchStats]);
 
   const kpis = stats
     ? [
         {
-          label: "Completion",
+          label: "Evaluation Progress",
           value: `${stats.completion_percent}%`,
           icon: TrendingUp,
-          color: "text-success",
-          bgColor: "bg-success/10",
+          color: "text-emerald-600 dark:text-emerald-400",
+          bgColor: "bg-emerald-500/10",
         },
         {
           label: "Total Scripts",
@@ -94,48 +107,49 @@ export default function ControllerDashboardPage() {
           label: "Open Flags",
           value: stats.open_flags.toString(),
           icon: AlertTriangle,
-          color: stats.open_flags > 0 ? "text-warning" : "text-muted-foreground",
-          bgColor: stats.open_flags > 0 ? "bg-warning/10" : "bg-muted",
+          color: stats.open_flags > 0 ? "text-amber-500" : "text-muted-foreground",
+          bgColor: stats.open_flags > 0 ? "bg-amber-500/10" : "bg-muted",
         },
         {
           label: "Moderation Queue",
           value: stats.moderation_pending.toString(),
           icon: Clock,
-          color:
-            stats.moderation_pending > 0
-              ? "text-info"
-              : "text-muted-foreground",
-          bgColor:
-            stats.moderation_pending > 0 ? "bg-info/10" : "bg-muted",
+          color: stats.moderation_pending > 0 ? "text-blue-500" : "text-muted-foreground",
+          bgColor: stats.moderation_pending > 0 ? "bg-blue-500/10" : "bg-muted",
         },
         {
           label: "Active Examiners",
           value: stats.active_examiners.toString(),
           icon: Users,
-          color: "text-primary",
-          bgColor: "bg-primary/10",
+          color: "text-purple-600 dark:text-purple-400",
+          bgColor: "bg-purple-500/10",
         },
         {
           label: "In Progress",
           value: stats.scripts_in_progress.toString(),
           icon: BarChart3,
-          color: "text-info",
-          bgColor: "bg-info/10",
+          color: "text-blue-500",
+          bgColor: "bg-blue-500/10",
         },
       ]
     : [];
 
   return (
-    <div>
-      <div className="flex items-center justify-between mb-6">
-        <h1 className="text-xl font-bold text-foreground">Dashboard</h1>
+    <div className="space-y-6">
+      <div className="flex items-center justify-between">
+        <div>
+          <h1 className="text-xl font-bold text-foreground">Controller Dashboard</h1>
+          <p className="text-xs text-muted-foreground mt-0.5">
+            Real-time evaluation statistics, queue status, and moderation metrics
+          </p>
+        </div>
         <button
           onClick={fetchStats}
           disabled={loading}
-          className="flex items-center gap-1.5 rounded-lg border border-border px-3 py-1.5 text-sm font-medium text-muted-foreground hover:text-foreground hover:bg-muted transition-colors"
+          className="flex items-center gap-1.5 rounded-lg border border-border px-3 py-1.5 text-xs font-medium text-muted-foreground hover:text-foreground hover:bg-muted transition-colors"
         >
           {loading ? (
-            <Loader2 className="h-4 w-4 animate-spin" />
+            <Loader2 className="h-4 w-4 animate-spin text-primary" />
           ) : (
             <RefreshCw className="h-4 w-4" />
           )}
@@ -144,7 +158,7 @@ export default function ControllerDashboardPage() {
       </div>
 
       {/* KPI Cards */}
-      <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3 mb-8">
+      <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
         {loading
           ? Array.from({ length: 6 }).map((_, i) => (
               <div
@@ -161,7 +175,7 @@ export default function ControllerDashboardPage() {
                 className="rounded-xl border border-border bg-card p-5 shadow-sm hover:shadow-md transition-shadow"
               >
                 <div className="flex items-center justify-between mb-3">
-                  <span className="text-sm font-medium text-muted-foreground">
+                  <span className="text-xs font-medium text-muted-foreground">
                     {kpi.label}
                   </span>
                   <div
@@ -173,44 +187,37 @@ export default function ControllerDashboardPage() {
                     <kpi.icon className={cn("h-5 w-5", kpi.color)} />
                   </div>
                 </div>
-                <p className={cn("text-3xl font-bold", kpi.color)}>
+                <p className={cn("text-3xl font-bold font-mono", kpi.color)}>
                   {kpi.value}
                 </p>
               </div>
             ))}
       </div>
 
-      {/* Activity Feed placeholder */}
-      <div className="rounded-xl border border-border bg-card p-6">
-        <h2 className="text-sm font-bold text-foreground mb-4">
-          Recent Activity
+      {/* Controller Summary Card */}
+      <div className="rounded-xl border border-border bg-card p-6 shadow-sm space-y-3">
+        <h2 className="text-sm font-bold text-foreground">
+          Evaluation Operations Overview
         </h2>
-        <div className="space-y-3">
-          {[
-            {
-              icon: "📋",
-              text: "Activity feed will show real-time events",
-              time: "—",
-            },
-            {
-              icon: "🔔",
-              text: "Flag notifications, evaluation completions, and moderation updates",
-              time: "—",
-            },
-          ].map((item, i) => (
-            <div
-              key={i}
-              className="flex items-start gap-3 py-2 border-b border-border last:border-0"
-            >
-              <span className="text-lg">{item.icon}</span>
-              <div className="flex-1 min-w-0">
-                <p className="text-sm text-foreground">{item.text}</p>
-              </div>
-              <span className="text-xs text-muted-foreground shrink-0">
-                {item.time}
-              </span>
+        <div className="grid gap-3 sm:grid-cols-3 text-xs">
+          <div className="p-3 rounded-xl bg-muted/40 border border-border">
+            <span className="text-muted-foreground">Evaluated Scripts:</span>
+            <div className="text-base font-bold text-foreground mt-0.5">
+              {stats?.scripts_evaluated || 0}
             </div>
-          ))}
+          </div>
+          <div className="p-3 rounded-xl bg-muted/40 border border-border">
+            <span className="text-muted-foreground">Pending Evaluation:</span>
+            <div className="text-base font-bold text-foreground mt-0.5">
+              {stats?.scripts_pending || 0}
+            </div>
+          </div>
+          <div className="p-3 rounded-xl bg-muted/40 border border-border">
+            <span className="text-muted-foreground">In Progress:</span>
+            <div className="text-base font-bold text-foreground mt-0.5">
+              {stats?.scripts_in_progress || 0}
+            </div>
+          </div>
         </div>
       </div>
     </div>

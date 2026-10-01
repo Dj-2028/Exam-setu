@@ -82,6 +82,46 @@ async def get_my_queue(
     evaluations, total = await svc.list_for_examiner(
         examiner_id=user.id, status=status, page=page, page_size=page_size
     )
+
+    # Auto-assign unassigned scripts to examiner if queue is empty
+    if total == 0:
+        from app.modules.scripts.models import Script
+        from app.modules.evaluation.models import Evaluation
+        from sqlalchemy import select, and_
+
+        unassigned_res = await db.execute(
+            select(Script).where(Script.status.in_(["ready", "uploaded", "assigned"]))
+        )
+        unassigned_scripts = list(unassigned_res.scalars().all())
+        for s in unassigned_scripts:
+            existing_eval = await db.execute(
+                select(Evaluation).where(
+                    and_(
+                        Evaluation.script_id == s.id,
+                        Evaluation.examiner_id == user.id,
+                    )
+                )
+            )
+            if not existing_eval.scalar_one_or_none():
+                try:
+                    if s.status not in ("ready", "assigned"):
+                        s.status = "ready"
+                        await db.commit()
+                        await db.refresh(s)
+                    await svc.assign(
+                        script_id=s.id,
+                        examiner_id=user.id,
+                        paper_id=s.paper_id,
+                        evaluation_type="primary",
+                    )
+                except Exception:
+                    pass
+
+        # Re-query list
+        evaluations, total = await svc.list_for_examiner(
+            examiner_id=user.id, status=status, page=page, page_size=page_size
+        )
+
     total_pages = (total + page_size - 1) // page_size if page_size > 0 else 0
     return EvaluationListResponse(
         items=[EvaluationResponse.model_validate(e) for e in evaluations],
@@ -282,7 +322,7 @@ async def request_ai_suggestion(
             )
         )
     )
-    answer_mark = mark_result.scalar_one_or_none()
+    answer_mark = mark_result.scalars().first()
 
     question_result = await db.execute(
         select(Question).where(Question.id == data.question_id)

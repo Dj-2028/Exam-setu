@@ -72,11 +72,23 @@ async def get_current_user_profile(
     svc = UserService(db)
     user = await svc.get_user_by_clerk_id(current_user.uid)
     if not user:
-        # First login — auto-create from Clerk claims if needed
-        from app.modules.users.schemas import UserCreate
-        # This path shouldn't normally occur since admins create users first
-        from app.core.errors import NotFoundError
-        raise NotFoundError("User profile not found. Contact your administrator.")
+        # First login — auto-create local DB profile from Clerk claims/context
+        from app.modules.users.models import User
+        from app.core.config import get_settings
+        settings = get_settings()
+        default_role = "admin" if settings.env == "dev" else "examiner"
+        role = current_user.role if current_user.role in ("examiner", "controller", "admin") else default_role
+        email = current_user.email or f"{current_user.uid}@clerk.user"
+        name = current_user.name or email.split("@")[0].capitalize()
+        user = User(
+            clerk_user_id=current_user.uid,
+            email=email,
+            name=name,
+            role=role,
+        )
+        db.add(user)
+        await db.commit()
+        await db.refresh(user)
     return user
 
 

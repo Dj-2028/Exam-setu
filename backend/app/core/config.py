@@ -35,7 +35,14 @@ class Settings(BaseSettings):
     @classmethod
     def assemble_db_connection(cls, v: str) -> str:
         if v.startswith("postgresql://"):
-            return v.replace("postgresql://", "postgresql+asyncpg://", 1)
+            v = "postgresql+asyncpg://" + v[len("postgresql://"):]
+        import re
+        # asyncpg does not accept channel_binding
+        v = re.sub(r"[?&]channel_binding=[^&]+", "", v)
+        # asyncpg accepts ssl=... rather than sslmode=...
+        v = re.sub(r"([?&])sslmode=([a-zA-Z0-9_-]+)", r"\1ssl=\2", v)
+        if "?" not in v and "&" in v:
+            v = v.replace("&", "?", 1)
         return v
 
     # ── Redis ──

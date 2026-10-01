@@ -145,7 +145,9 @@ class EvaluationService:
         evaluation = await self.get_evaluation(evaluation_id)
         await self._verify_examiner(evaluation, examiner_uid)
 
-        if evaluation.status != "in_progress":
+        if evaluation.status == "assigned":
+            evaluation = await self.start(evaluation_id, examiner_uid)
+        elif evaluation.status != "in_progress":
             raise BadRequestError("Evaluation is not in progress.")
 
         # Validate mark against question max
@@ -174,7 +176,7 @@ class EvaluationService:
                 )
             )
         )
-        answer_mark = result.scalar_one_or_none()
+        answer_mark = result.scalars().first()
 
         if not answer_mark:
             answer_mark = AnswerMark(
@@ -244,7 +246,7 @@ class EvaluationService:
                 )
             )
         )
-        answer_mark = result.scalar_one_or_none()
+        answer_mark = result.scalars().first()
         if not answer_mark:
             raise NotFoundError("AnswerMark not found for this evaluation+question.")
 
@@ -363,7 +365,9 @@ class EvaluationService:
         page: int = 1,
         page_size: int = 20,
     ) -> tuple[list[Evaluation], int]:
-        query = select(Evaluation).where(Evaluation.examiner_id == examiner_id)
+        from sqlalchemy.orm import selectinload
+
+        query = select(Evaluation).options(selectinload(Evaluation.answer_marks)).where(Evaluation.examiner_id == examiner_id)
         count_query = select(func.count()).select_from(Evaluation).where(
             Evaluation.examiner_id == examiner_id
         )

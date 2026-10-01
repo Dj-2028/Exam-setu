@@ -1,6 +1,7 @@
 "use client";
 
 import { useState, useEffect, useCallback, useRef } from "react";
+import { useRouter } from "next/navigation";
 import { api } from "@/lib/api/client";
 import { cn } from "@/lib/utils";
 import { ConfidenceBadge } from "@/components/shared/ConfidenceBadge";
@@ -17,6 +18,8 @@ import {
   Check,
   Loader2,
   Flag,
+  X,
+  FileImage,
 } from "lucide-react";
 
 // ── Types ──
@@ -43,6 +46,7 @@ interface Region {
   transcription_confidence: number;
   has_diagram: boolean;
   is_blank: boolean;
+  storage_key?: string | null;
 }
 
 interface PageData {
@@ -51,6 +55,7 @@ interface PageData {
   width: number;
   height: number;
   regions: Region[];
+  storage_key?: string | null;
 }
 
 interface AnswerMark {
@@ -85,15 +90,26 @@ interface WorkspaceProps {
 // ── Main Component ──
 
 export function EvaluationWorkspace({ evaluationId }: WorkspaceProps) {
+  const router = useRouter();
   const [questions, setQuestions] = useState<Question[]>([]);
   const [pages, setPages] = useState<PageData[]>([]);
   const [marks, setMarks] = useState<Map<string, AnswerMark>>(new Map());
   const [paper, setPaper] = useState<Paper | null>(null);
+  const [scriptId, setScriptId] = useState<string | null>(null);
+  
   const [currentQuestionIdx, setCurrentQuestionIdx] = useState(0);
   const [saveStatus, setSaveStatus] = useState<"saved" | "saving" | "failed">("saved");
   const [loading, setLoading] = useState(true);
   const [zoom, setZoom] = useState(1);
   const [aiLoading, setAiLoading] = useState<string | null>(null);
+  
+  // Flag Modal state
+  const [showFlagModal, setShowFlagModal] = useState(false);
+  const [flagReason, setFlagReason] = useState("");
+  const [flagType, setFlagType] = useState("manual");
+  const [submittingFlag, setSubmittingFlag] = useState(false);
+  const [flagError, setFlagError] = useState<string | null>(null);
+
   const startTimeRef = useRef<number>(Date.now());
   const questionStartRef = useRef<number>(Date.now());
 
@@ -101,24 +117,23 @@ export function EvaluationWorkspace({ evaluationId }: WorkspaceProps) {
   useEffect(() => {
     const load = async () => {
       try {
-        // Start the evaluation
         await api.post(`/evaluations/${evaluationId}/start`, {});
 
-        // Load workspace
         const workspace = await api.get<{
           questions: Question[];
           pages: PageData[];
           marks: AnswerMark[];
           paper: Paper;
+          script_id?: string;
         }>(`/evaluations/${evaluationId}/workspace`);
 
-        setQuestions(workspace.questions);
-        setPages(workspace.pages);
-        setPaper(workspace.paper);
+        setQuestions(workspace.questions || []);
+        setPages(workspace.pages || []);
+        setPaper(workspace.paper || null);
+        if (workspace.script_id) setScriptId(workspace.script_id);
 
-        // Index marks by question ID
         const markMap = new Map<string, AnswerMark>();
-        workspace.marks.forEach((m) => markMap.set(m.question_id, m));
+        (workspace.marks || []).forEach((m) => markMap.set(m.question_id, m));
         setMarks(markMap);
       } catch {
         // Handle error
@@ -132,12 +147,28 @@ export function EvaluationWorkspace({ evaluationId }: WorkspaceProps) {
   const currentQuestion = questions[currentQuestionIdx];
   const currentMark = currentQuestion ? marks.get(currentQuestion.id) : null;
 
-  // ── Find the region for the current question ──
+  // Find the page & region for the current question
+  const currentPage = pages.find((p) =>
+    p.regions.some((r) => r.question_id === currentQuestion?.id)
+  ) || pages[0];
+
   const currentRegion = currentQuestion
     ? pages
         .flatMap((p) => p.regions)
         .find((r) => r.question_id === currentQuestion.id)
     : null;
+
+  // Image URL helper (constructs URL from storage_key if present)
+  const getImageUrl = (storageKey?: string | null) => {
+    if (!storageKey) return null;
+    if (storageKey.startsWith("http://") || storageKey.startsWith("https://")) {
+      return storageKey;
+    }
+    const rawBase = process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000";
+    return `${rawBase}/api/v1/storage/view?key=${encodeURIComponent(storageKey)}`;
+  };
+
+  const pageImageUrl = getImageUrl(currentRegion?.storage_key || currentPage?.storage_key);
 
   // ── Save mark ──
   const saveMark = useCallback(
@@ -185,7 +216,6 @@ export function EvaluationWorkspace({ evaluationId }: WorkspaceProps) {
           region_id: currentRegion?.id || null,
         });
 
-        // Update the mark with AI suggestion
         setMarks((prev) => {
           const next = new Map(prev);
           const existing = next.get(questionId);
@@ -216,11 +246,48 @@ export function EvaluationWorkspace({ evaluationId }: WorkspaceProps) {
       await api.post(`/evaluations/${evaluationId}/submit`, {
         total_time_seconds: totalTime,
       });
-      window.location.href = "/examiner";
+      router.push("/examiner");
     } catch {
       // Handle error
     }
-  }, [evaluationId]);
+  }, [evaluationId, router]);
+
+  // ── Raise Flag ──
+  const handleRaiseFlag = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!flagReason.trim()) {
+      setFlagError("Please state a reason for flagging.");
+      return;
+    }
+    setSubmittingFlag(true);
+    setFlagError(null);
+    try {
+      await api.post("/flags", {
+        flag_type: flagType,
+        severity: "medium",
+        message: flagReason.trim(),
+        evaluation_id: evaluationId,
+        question_id: currentQuestion?.id || null,
+        script_id: scriptId || null,
+      });
+      setShowFlagModal(false);
+      setFlagReason("");
+      if (currentQuestion) {
+        setMarks((prev) => {
+          const next = new Map(prev);
+          const existing = next.get(currentQuestion.id);
+          if (existing) {
+            next.set(currentQuestion.id, { ...existing, has_flag: true });
+          }
+          return next;
+        });
+      }
+    } catch (err: any) {
+      setFlagError(err?.error?.message || err?.message || "Failed to raise flag.");
+    } finally {
+      setSubmittingFlag(false);
+    }
+  };
 
   // ── Navigate ──
   const goNext = () => {
@@ -236,7 +303,6 @@ export function EvaluationWorkspace({ evaluationId }: WorkspaceProps) {
     }
   };
 
-  // ── Mark increment buttons ──
   const getMarkOptions = (maxMarks: number, increment: number): number[] => {
     const options: number[] = [0];
     let current = increment;
@@ -247,10 +313,9 @@ export function EvaluationWorkspace({ evaluationId }: WorkspaceProps) {
     return options;
   };
 
-  // ── Keyboard Shortcuts ──
+  // Keyboard Shortcuts
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
-      // Don't trigger in input fields
       if (e.target instanceof HTMLInputElement || e.target instanceof HTMLTextAreaElement) return;
 
       switch (e.key) {
@@ -265,18 +330,15 @@ export function EvaluationWorkspace({ evaluationId }: WorkspaceProps) {
           goPrev();
           break;
         case "a":
-          // Request AI suggestion
           if (currentQuestion && paper?.ai_suggestions_enabled && !aiLoading) {
             e.preventDefault();
             requestAISuggestion(currentQuestion.id);
           }
           break;
         default:
-          // Number keys 0-9 for quick marks
           if (/^[0-9]$/.test(e.key) && currentQuestion && paper) {
             const num = parseInt(e.key);
-            const increment = paper.increment;
-            const mark = num * increment;
+            const mark = num * paper.increment;
             if (mark <= currentQuestion.max_marks) {
               e.preventDefault();
               saveMark(currentQuestion.id, mark);
@@ -288,9 +350,8 @@ export function EvaluationWorkspace({ evaluationId }: WorkspaceProps) {
 
     window.addEventListener("keydown", handleKeyDown);
     return () => window.removeEventListener("keydown", handleKeyDown);
-  }, [currentQuestion, currentQuestionIdx, questions.length, paper, aiLoading]);
+  }, [currentQuestion, currentQuestionIdx, questions.length, paper, aiLoading, saveMark, requestAISuggestion]);
 
-  // ── Progress ──
   const markedCount = Array.from(marks.values()).filter((m) => m.is_marked).length;
   const totalMarksAwarded = Array.from(marks.values())
     .filter((m) => m.is_marked && m.mark !== null)
@@ -307,32 +368,30 @@ export function EvaluationWorkspace({ evaluationId }: WorkspaceProps) {
 
   return (
     <div className="flex flex-col h-[calc(100vh-3.5rem)]">
-      {/* ── Top Bar ── */}
+      {/* Top Bar */}
       <div className="flex items-center justify-between border-b border-border bg-card px-4 py-2 shrink-0">
         <div className="flex items-center gap-4">
           <span className="text-sm font-medium text-foreground">
             {paper?.code} — {paper?.name}
           </span>
-          <span className="text-xs text-muted-foreground">
+          <span className="text-xs text-muted-foreground font-mono">
             Q{currentQuestionIdx + 1}/{questions.length}
           </span>
           <SaveStatus state={saveStatus} />
         </div>
 
         <div className="flex items-center gap-3">
-          {/* Running total */}
           <span className="text-sm font-mono font-bold text-foreground">
             {totalMarksAwarded} / {paper?.total_marks || 0}
           </span>
 
-          {/* Submit */}
           <button
             onClick={submitEvaluation}
             disabled={!allMarked}
             className={cn(
               "flex items-center gap-1.5 rounded-lg px-4 py-2 text-sm font-medium transition-all",
               allMarked
-                ? "bg-success text-success-foreground shadow-sm hover:opacity-90"
+                ? "bg-emerald-600 text-white shadow-sm hover:opacity-90"
                 : "bg-muted text-muted-foreground cursor-not-allowed"
             )}
           >
@@ -342,11 +401,10 @@ export function EvaluationWorkspace({ evaluationId }: WorkspaceProps) {
         </div>
       </div>
 
-      {/* ── Main Split View ── */}
+      {/* Main Split View */}
       <div className="flex flex-1 overflow-hidden">
-        {/* Left: Page Viewer */}
+        {/* Left: Page Viewer Canvas */}
         <div className="flex-1 flex flex-col bg-muted/30 min-w-0">
-          {/* Zoom controls */}
           <div className="flex items-center justify-center gap-2 border-b border-border bg-card/50 py-1.5">
             <button
               onClick={() => setZoom((z) => Math.max(0.5, z - 0.25))}
@@ -354,7 +412,7 @@ export function EvaluationWorkspace({ evaluationId }: WorkspaceProps) {
             >
               <ZoomOut className="h-4 w-4" />
             </button>
-            <span className="text-xs text-muted-foreground w-12 text-center">
+            <span className="text-xs text-muted-foreground w-12 text-center font-mono">
               {Math.round(zoom * 100)}%
             </span>
             <button
@@ -371,10 +429,9 @@ export function EvaluationWorkspace({ evaluationId }: WorkspaceProps) {
             </button>
           </div>
 
-          {/* Page image with region overlay */}
           <div className="flex-1 overflow-auto p-4">
             <div
-              className="mx-auto relative bg-white rounded-lg shadow-md"
+              className="mx-auto relative bg-card border border-border rounded-xl shadow-md overflow-hidden"
               style={{
                 transform: `scale(${zoom})`,
                 transformOrigin: "top center",
@@ -383,50 +440,82 @@ export function EvaluationWorkspace({ evaluationId }: WorkspaceProps) {
                 minHeight: "600px",
               }}
             >
-              {/* Placeholder for actual page image */}
-              <div className="flex items-center justify-center h-full min-h-[600px] text-muted-foreground text-sm">
-                {currentRegion ? (
-                  <div className="p-6 w-full">
-                    <div className="mb-3 text-xs font-medium text-muted-foreground uppercase tracking-wide">
-                      Student Answer — Q{currentQuestion?.question_number}
-                      {currentQuestion?.sub_part}
+              {pageImageUrl ? (
+                <div className="relative w-full h-full min-h-[600px] flex items-center justify-center bg-black/5">
+                  {/* Real Page Image */}
+                  <img
+                    src={pageImageUrl}
+                    alt={`Page ${currentPage?.page_number || 1}`}
+                    className="max-w-full h-auto object-contain shadow-sm"
+                  />
+                  
+                  {/* Bounding box overlay if region exists */}
+                  {currentRegion && currentRegion.bbox_w > 0 && (
+                    <div
+                      className="absolute border-2 border-primary bg-primary/10 rounded pointer-events-none transition-all"
+                      style={{
+                        left: `${currentRegion.bbox_x}%`,
+                        top: `${currentRegion.bbox_y}%`,
+                        width: `${currentRegion.bbox_w}%`,
+                        height: `${currentRegion.bbox_h}%`,
+                      }}
+                    >
+                      <span className="absolute -top-5 left-0 bg-primary text-primary-foreground text-[10px] px-1.5 py-0.5 rounded font-bold">
+                        Q{currentQuestion?.question_number}{currentQuestion?.sub_part}
+                      </span>
                     </div>
-                    {currentRegion.is_blank ? (
-                      <div className="flex items-center gap-2 text-warning">
-                        <AlertTriangle className="h-4 w-4" />
+                  )}
+                </div>
+              ) : (
+                /* Fallback Transcription Card */
+                <div className="p-6 h-full min-h-[600px] flex flex-col justify-between">
+                  <div className="space-y-4">
+                    <div className="flex items-center justify-between border-b border-border pb-2">
+                      <span className="text-xs font-bold text-foreground uppercase tracking-wide flex items-center gap-1.5">
+                        <FileImage className="h-4 w-4 text-primary" />
+                        Candidate Answer Script — Q{currentQuestion?.question_number}
+                        {currentQuestion?.sub_part}
+                      </span>
+                      <span className="text-[10px] text-muted-foreground font-mono">
+                        Page {currentPage?.page_number || 1}
+                      </span>
+                    </div>
+
+                    {currentRegion?.is_blank ? (
+                      <div className="flex items-center gap-2 text-warning p-4 rounded-xl bg-warning/10 border border-warning/20">
+                        <AlertTriangle className="h-5 w-5" />
                         <span className="text-sm font-medium">
-                          Blank answer detected
+                          Blank answer area detected
                         </span>
                       </div>
                     ) : (
                       <div className="space-y-3">
-                        <div className="rounded-lg bg-muted/50 p-4 font-serif text-sm leading-relaxed text-foreground whitespace-pre-wrap">
-                          {currentRegion.transcription || "No transcription available"}
+                        <div className="rounded-xl bg-muted/40 p-4 font-serif text-sm leading-relaxed text-foreground whitespace-pre-wrap border border-border">
+                          {currentRegion?.transcription || "No handwritten transcription available."}
                         </div>
                         <div className="flex items-center gap-2">
-                          <ConfidenceBadge
-                            confidence={currentRegion.transcription_confidence}
-                          />
-                          {currentRegion.has_diagram && (
-                            <span className="rounded-full bg-info/10 px-2 py-0.5 text-xs font-medium text-info">
-                              📐 Diagram detected
+                          {currentRegion && (
+                            <ConfidenceBadge
+                              confidence={currentRegion.transcription_confidence}
+                            />
+                          )}
+                          {currentRegion?.has_diagram && (
+                            <span className="rounded-full bg-blue-500/10 px-2.5 py-0.5 text-xs font-medium text-blue-600 dark:text-blue-400">
+                              📐 Diagram Region
                             </span>
                           )}
                         </div>
                       </div>
                     )}
                   </div>
-                ) : (
-                  <span>No region mapped for this question</span>
-                )}
-              </div>
+                </div>
+              )}
             </div>
           </div>
         </div>
 
         {/* Right: Marking Panel */}
         <div className="w-80 lg:w-96 border-l border-border bg-card flex flex-col shrink-0">
-          {/* Question info */}
           <div className="border-b border-border p-4">
             <div className="flex items-center justify-between mb-2">
               <h3 className="text-sm font-bold text-foreground">
@@ -442,16 +531,6 @@ export function EvaluationWorkspace({ evaluationId }: WorkspaceProps) {
                 {currentQuestion.text}
               </p>
             )}
-            {currentQuestion?.rubric && (
-              <details className="mt-2">
-                <summary className="text-xs text-primary cursor-pointer hover:underline">
-                  View rubric
-                </summary>
-                <p className="mt-1 text-xs text-muted-foreground leading-relaxed whitespace-pre-wrap">
-                  {currentQuestion.rubric}
-                </p>
-              </details>
-            )}
           </div>
 
           {/* AI Suggestion */}
@@ -460,35 +539,22 @@ export function EvaluationWorkspace({ evaluationId }: WorkspaceProps) {
               {currentMark?.ai_band_min != null ? (
                 <div className="space-y-2">
                   <div className="flex items-center gap-2">
-                    <Sparkles className="h-4 w-4 text-ai" />
-                    <span className="text-xs font-medium text-ai">
-                      AI Suggestion
+                    <Sparkles className="h-4 w-4 text-purple-500" />
+                    <span className="text-xs font-semibold text-purple-600 dark:text-purple-400">
+                      AI Suggested Score
                     </span>
                     <ConfidenceBadge
                       confidence={currentMark.ai_confidence || 0}
                     />
                   </div>
                   <div className="flex items-center gap-2">
-                    <span className="rounded-lg bg-ai-suggestion/20 px-3 py-1.5 text-sm font-bold text-ai">
+                    <span className="rounded-lg bg-purple-500/10 px-3 py-1.5 text-sm font-bold text-purple-600 dark:text-purple-400">
                       {currentMark.ai_band_min} – {currentMark.ai_band_max}
                     </span>
                     <span className="text-xs text-muted-foreground">
                       / {currentQuestion.max_marks}
                     </span>
                   </div>
-                  {currentMark.ai_reasons?.reasons && (
-                    <ul className="space-y-1">
-                      {currentMark.ai_reasons.reasons.map((r, i) => (
-                        <li
-                          key={i}
-                          className="text-xs text-muted-foreground flex items-start gap-1.5"
-                        >
-                          <span className="text-ai mt-0.5">•</span>
-                          {r}
-                        </li>
-                      ))}
-                    </ul>
-                  )}
                 </div>
               ) : (
                 <button
@@ -496,7 +562,7 @@ export function EvaluationWorkspace({ evaluationId }: WorkspaceProps) {
                     currentQuestion && requestAISuggestion(currentQuestion.id)
                   }
                   disabled={aiLoading === currentQuestion.id}
-                  className="flex items-center gap-2 rounded-lg border border-ai/30 bg-ai/5 px-3 py-2 text-sm font-medium text-ai hover:bg-ai/10 transition-colors w-full justify-center"
+                  className="flex items-center gap-2 rounded-lg border border-purple-500/30 bg-purple-500/5 px-3 py-2 text-xs font-medium text-purple-600 dark:text-purple-400 hover:bg-purple-500/10 transition-colors w-full justify-center"
                 >
                   {aiLoading === currentQuestion.id ? (
                     <Loader2 className="h-4 w-4 animate-spin" />
@@ -510,13 +576,12 @@ export function EvaluationWorkspace({ evaluationId }: WorkspaceProps) {
           )}
 
           {/* Mark Input */}
-          <div className="flex-1 overflow-y-auto p-4">
+          <div className="flex-1 overflow-y-auto p-4 space-y-4">
             <div className="space-y-3">
-              <label className="text-xs font-medium text-muted-foreground uppercase tracking-wide">
+              <label className="text-[11px] font-semibold text-muted-foreground uppercase tracking-wider block">
                 Award Marks
               </label>
 
-              {/* Quick mark buttons */}
               {currentQuestion && paper && (
                 <div className="flex flex-wrap gap-1.5">
                   {getMarkOptions(
@@ -536,11 +601,11 @@ export function EvaluationWorkspace({ evaluationId }: WorkspaceProps) {
                           currentQuestion && saveMark(currentQuestion.id, value)
                         }
                         className={cn(
-                          "h-9 min-w-[2.25rem] rounded-lg border text-sm font-medium transition-all",
+                          "h-9 min-w-[2.25rem] rounded-lg border text-xs font-semibold transition-all",
                           isSelected
                             ? "border-primary bg-primary text-primary-foreground shadow-sm scale-105"
                             : isInAiBand
-                              ? "border-ai/40 bg-ai/10 text-ai hover:bg-ai/20"
+                              ? "border-purple-500/40 bg-purple-500/10 text-purple-600 dark:text-purple-400"
                               : "border-border bg-card text-foreground hover:bg-muted"
                         )}
                       >
@@ -551,33 +616,23 @@ export function EvaluationWorkspace({ evaluationId }: WorkspaceProps) {
                 </div>
               )}
 
-              {/* Override reason (shown when mark diverges from AI band) */}
-              {currentMark?.is_override && (
-                <div className="rounded-lg border border-warning/30 bg-warning/5 p-3">
-                  <div className="flex items-center gap-1.5 mb-1">
-                    <AlertTriangle className="h-3.5 w-3.5 text-warning" />
-                    <span className="text-xs font-medium text-warning">
-                      Outside AI range
-                    </span>
-                  </div>
-                  <p className="text-xs text-muted-foreground">
-                    Your mark differs from the AI suggestion. This is recorded
-                    for audit purposes.
-                  </p>
-                </div>
-              )}
-
-              {/* Flag button */}
-              <button className="flex items-center gap-1.5 rounded-lg border border-border px-3 py-1.5 text-xs font-medium text-muted-foreground hover:text-foreground hover:bg-muted transition-colors">
+              {/* Raise Flag Trigger */}
+              <button
+                onClick={() => setShowFlagModal(true)}
+                className={`flex items-center gap-1.5 rounded-lg border px-3 py-1.5 text-xs font-medium transition-colors ${
+                  currentMark?.has_flag
+                    ? "border-amber-500/40 bg-amber-500/10 text-amber-600"
+                    : "border-border text-muted-foreground hover:text-foreground hover:bg-muted"
+                }`}
+              >
                 <Flag className="h-3.5 w-3.5" />
-                Raise Flag
+                {currentMark?.has_flag ? "Flagged" : "Raise Flag"}
               </button>
             </div>
           </div>
 
-          {/* Question navigator */}
+          {/* Question Grid Navigator */}
           <div className="border-t border-border p-3">
-            {/* Mini question grid */}
             <div className="flex flex-wrap gap-1 mb-3">
               {questions.map((q, idx) => {
                 const mark = marks.get(q.id);
@@ -594,40 +649,106 @@ export function EvaluationWorkspace({ evaluationId }: WorkspaceProps) {
                       isActive
                         ? "bg-primary text-primary-foreground ring-2 ring-primary/30"
                         : mark?.is_marked
-                          ? "bg-success/20 text-success border border-success/30"
+                          ? "bg-emerald-500/20 text-emerald-600 border border-emerald-500/30"
                           : "bg-muted text-muted-foreground hover:bg-accent"
                     )}
-                    title={`Q${q.question_number}${q.sub_part}: ${mark?.is_marked ? `${mark.mark}/${q.max_marks}` : "Not marked"}`}
                   >
-                    {q.question_number}
-                    {q.sub_part}
+                    {q.question_number}{q.sub_part}
                   </button>
                 );
               })}
             </div>
 
-            {/* Prev / Next */}
             <div className="flex items-center gap-2">
               <button
                 onClick={goPrev}
                 disabled={currentQuestionIdx === 0}
-                className="flex-1 flex items-center justify-center gap-1 rounded-lg border border-border py-2 text-sm font-medium text-foreground hover:bg-muted transition-colors disabled:opacity-40"
+                className="flex-1 flex items-center justify-center gap-1 rounded-lg border border-border py-1.5 text-xs font-medium text-foreground hover:bg-muted disabled:opacity-40"
               >
-                <ChevronLeft className="h-4 w-4" />
-                Prev
+                <ChevronLeft className="h-4 w-4" /> Prev
               </button>
               <button
                 onClick={goNext}
                 disabled={currentQuestionIdx === questions.length - 1}
-                className="flex-1 flex items-center justify-center gap-1 rounded-lg bg-primary py-2 text-sm font-medium text-primary-foreground hover:opacity-90 transition-opacity disabled:opacity-40"
+                className="flex-1 flex items-center justify-center gap-1 rounded-lg bg-primary py-1.5 text-xs font-medium text-primary-foreground hover:opacity-90 disabled:opacity-40"
               >
-                Next
-                <ChevronRight className="h-4 w-4" />
+                Next <ChevronRight className="h-4 w-4" />
               </button>
             </div>
           </div>
         </div>
       </div>
+
+      {/* Flag Modal */}
+      {showFlagModal && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 backdrop-blur-sm p-4">
+          <div className="w-full max-w-md rounded-2xl border border-border bg-card p-6 shadow-xl space-y-4">
+            <div className="flex items-center justify-between">
+              <h2 className="text-sm font-bold text-foreground flex items-center gap-1.5">
+                <Flag className="h-4 w-4 text-amber-500" />
+                Raise Answer Sheet Flag
+              </h2>
+              <button
+                onClick={() => setShowFlagModal(false)}
+                className="rounded-lg p-1 text-muted-foreground hover:text-foreground"
+              >
+                <X className="h-4 w-4" />
+              </button>
+            </div>
+
+            {flagError && (
+              <div className="rounded-lg bg-destructive/10 p-3 text-xs text-destructive">
+                {flagError}
+              </div>
+            )}
+
+            <form onSubmit={handleRaiseFlag} className="space-y-3 text-xs">
+              <div>
+                <label className="block font-medium mb-1">Flag Type</label>
+                <select
+                  value={flagType}
+                  onChange={(e) => setFlagType(e.target.value)}
+                  className="w-full rounded-lg border border-border bg-background px-3 py-2 text-xs focus:outline-none focus:ring-2 focus:ring-primary/30"
+                >
+                  <option value="blank_answer">Blank / Unanswered Area</option>
+                  <option value="illegible_handwriting">Illegible Handwriting</option>
+                  <option value="out_of_syllabus">Incorrect / Mapped Question</option>
+                  <option value="manual">General Examiner Query</option>
+                </select>
+              </div>
+
+              <div>
+                <label className="block font-medium mb-1">Reason / Note *</label>
+                <textarea
+                  required
+                  rows={3}
+                  value={flagReason}
+                  onChange={(e) => setFlagReason(e.target.value)}
+                  placeholder="Describe why this question or answer script requires controller review..."
+                  className="w-full rounded-lg border border-border bg-background px-3 py-2 text-xs focus:outline-none focus:ring-2 focus:ring-primary/30"
+                />
+              </div>
+
+              <div className="flex justify-end gap-2 pt-2">
+                <button
+                  type="button"
+                  onClick={() => setShowFlagModal(false)}
+                  className="rounded-lg border border-border px-4 py-2 text-xs font-medium text-muted-foreground"
+                >
+                  Cancel
+                </button>
+                <button
+                  type="submit"
+                  disabled={submittingFlag}
+                  className="rounded-lg bg-amber-500 text-white px-4 py-2 text-xs font-medium shadow-sm hover:bg-amber-600 disabled:opacity-50"
+                >
+                  {submittingFlag ? "Submitting..." : "Submit Flag"}
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

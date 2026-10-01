@@ -4,7 +4,7 @@ import { SignIn } from "@clerk/nextjs";
 import { dark } from "@clerk/themes";
 import { useAuth } from "@/lib/auth/AuthProvider";
 import { useRouter } from "next/navigation";
-import { useEffect } from "react";
+import { useEffect, useState } from "react";
 import { useTheme } from "next-themes";
 import { Sun, Moon, Monitor } from "lucide-react";
 
@@ -12,6 +12,11 @@ export default function LoginPage() {
   const { state, role } = useAuth();
   const router = useRouter();
   const { theme, setTheme } = useTheme();
+
+  const [mounted, setMounted] = useState(false);
+  useEffect(() => {
+    setMounted(true);
+  }, []);
 
   // Redirect if already signed in
   useEffect(() => {
@@ -25,6 +30,8 @@ export default function LoginPage() {
     }
   }, [state, role, router]);
 
+  const activeTheme = mounted ? theme : undefined;
+
   return (
     <div className="flex min-h-screen flex-col items-center justify-center bg-background px-4 py-12">
       {/* Theme toggle */}
@@ -32,7 +39,7 @@ export default function LoginPage() {
         <button
           onClick={() => setTheme("light")}
           className={`rounded-lg p-2 transition-colors ${
-            theme === "light"
+            activeTheme === "light"
               ? "bg-accent text-accent-foreground"
               : "text-muted-foreground hover:text-foreground"
           }`}
@@ -43,7 +50,7 @@ export default function LoginPage() {
         <button
           onClick={() => setTheme("dark")}
           className={`rounded-lg p-2 transition-colors ${
-            theme === "dark"
+            activeTheme === "dark"
               ? "bg-accent text-accent-foreground"
               : "text-muted-foreground hover:text-foreground"
           }`}
@@ -54,7 +61,7 @@ export default function LoginPage() {
         <button
           onClick={() => setTheme("system")}
           className={`rounded-lg p-2 transition-colors ${
-            theme === "system"
+            activeTheme === "system"
               ? "bg-accent text-accent-foreground"
               : "text-muted-foreground hover:text-foreground"
           }`}
@@ -77,7 +84,8 @@ export default function LoginPage() {
 
       {/* Official Clerk Sign In */}
       <SignIn
-        routing="hash"
+        routing="path"
+        path="/login"
         appearance={theme === "dark" ? dark : undefined}
       />
 

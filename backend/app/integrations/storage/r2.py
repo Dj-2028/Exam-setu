@@ -43,35 +43,60 @@ class R2StorageClient(StorageClient):
         data: bytes,
         content_type: str = "application/octet-stream",
     ) -> str:
-        """Upload an object to R2."""
-        loop = asyncio.get_event_loop()
-        await loop.run_in_executor(
-            None,
-            partial(
-                self._client.put_object,
-                Bucket=self._bucket,
-                Key=key,
-                Body=data,
-                ContentType=content_type,
-            ),
-        )
-        logger.info("storage_upload", key=key, content_type=content_type)
+        """Upload an object to R2 (with local disk fallback)."""
+        try:
+            loop = asyncio.get_event_loop()
+            await loop.run_in_executor(
+                None,
+                partial(
+                    self._client.put_object,
+                    Bucket=self._bucket,
+                    Key=key,
+                    Body=data,
+                    ContentType=content_type,
+                ),
+            )
+            logger.info("storage_upload", key=key, content_type=content_type)
+        except Exception as e:
+            logger.warning(
+                "storage_upload_r2_failed_using_local_fallback",
+                key=key,
+                error=str(e),
+            )
+            import os
+            local_path = os.path.join("uploads", key.replace("/", "_"))
+            os.makedirs(os.path.dirname(local_path) or ".", exist_ok=True)
+            with open(local_path, "wb") as f:
+                f.write(data)
         return key
 
     async def download(self, key: str) -> bytes:
-        """Download an object from R2."""
-        loop = asyncio.get_event_loop()
-        response = await loop.run_in_executor(
-            None,
-            partial(
-                self._client.get_object,
-                Bucket=self._bucket,
-                Key=key,
-            ),
-        )
-        data = response["Body"].read()
-        logger.info("storage_download", key=key, size=len(data))
-        return data
+        """Download an object from R2 (with local disk fallback)."""
+        try:
+            loop = asyncio.get_event_loop()
+            response = await loop.run_in_executor(
+                None,
+                partial(
+                    self._client.get_object,
+                    Bucket=self._bucket,
+                    Key=key,
+                ),
+            )
+            data = response["Body"].read()
+            logger.info("storage_download", key=key, size=len(data))
+            return data
+        except Exception as e:
+            logger.warning(
+                "storage_download_r2_failed_trying_local_fallback",
+                key=key,
+                error=str(e),
+            )
+            import os
+            local_path = os.path.join("uploads", key.replace("/", "_"))
+            if os.path.exists(local_path):
+                with open(local_path, "rb") as f:
+                    return f.read()
+            raise
 
     async def generate_upload_url(
         self, key: str, content_type: str, expires_in: int = 3600
