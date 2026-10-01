@@ -1,7 +1,5 @@
-"""Docker configuration for ExamSetu AI backend.
-
-Single image used for both API and worker — entrypoint differs.
-"""
+# Docker configuration for ExamSetu AI backend.
+# Single image used for both API and worker.
 
 FROM python:3.12-slim
 
@@ -30,7 +28,7 @@ ENV PORT=8000
 EXPOSE ${PORT}
 
 # API command (override with worker command for background worker)
-CMD ["uvicorn", "app.main:app", "--host", "0.0.0.0", "--port", "8000", "--workers", "2"]
+CMD ["sh", "-c", "uvicorn app.main:app --host 0.0.0.0 --port ${PORT:-8000} --workers 2"]
 
 # Worker command (used in Render Background Worker):
 # CMD ["arq", "app.workers.settings.WorkerSettings"]
